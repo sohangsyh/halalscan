@@ -538,7 +538,12 @@ const clearKeyBtn = $('clear-key-btn');
 let mediaStream = null;
 let scanMode = 'text'; // 'text' = ingredient list OCR only, 'image' = product photo recognition only
 // Kept in memory only for this page session — never persisted to disk, cleared on reload.
-let googleApiKey = '';
+// NOTE: pre-filled with the key supplied by the app owner as a convenience default.
+// This does NOT look like a standard Google Cloud "API key" (those start with "AIza...").
+// If Cloud Vision/Translation calls fail with 400/401 below, generate a proper API key
+// (APIs & Services -> Credentials -> Create Credentials -> API key) and replace this value,
+// or paste the correct key into Settings in the app instead of editing this file.
+let googleApiKey = 'AQ.Ab8RN6I3_hCwgutuh1jm2snvITfjYiod0N_ECTX4UKBgHlavLw';
 
 const MODE_COPY = {
   text: {
@@ -931,6 +936,13 @@ const VERDICT_ICONS = {
 
 function renderResult(verdict, haramHits, mashboohHits, fullText, imageLabels, usedCloud, cloudWarning) {
   resultsSection.classList.remove('hidden');
+
+  // Once a result is showing, only "Scan Another Product" should be visible —
+  // avoids the Start Camera / Upload Image / Scan Another three-button clutter.
+  startCameraBtn.classList.add('hidden');
+  captureBtn.classList.add('hidden');
+  stopCameraBtn.classList.add('hidden');
+  uploadBtn.classList.add('hidden');
   rescanBtn.classList.remove('hidden');
 
   const configs = {
