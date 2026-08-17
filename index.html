@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Halal Scanner — Ingredient Checker</title>
+<meta name="description" content="Scan ingredient lists with your camera and instantly check if a product is Halal, Haram, or Doubtful." />
+
+<!-- Tailwind CSS (CDN) -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          halal: { DEFAULT: '#16a34a', light: '#dcfce7', dark: '#14532d' },
+          haram: { DEFAULT: '#dc2626', light: '#fee2e2', dark: '#7f1d1d' },
+          mashbooh: { DEFAULT: '#d97706', light: '#fef3c7', dark: '#78350f' },
+          brand: { DEFAULT: '#0f766e', light: '#ccfbf1' }
+        },
+        fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'] }
+      }
+    }
+  }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- Tesseract.js for in-browser OCR (auto multi-language) -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+<style>
+  html, body { font-family: 'Inter', sans-serif; overscroll-behavior-y: contain; }
+  #camera-video { transform: scaleX(1); }
+  .scan-frame {
+    box-shadow: 0 0 0 9999px rgba(0,0,0,0.45);
+  }
+  @keyframes scanline {
+    0% { top: 0%; }
+    50% { top: 100%; }
+    100% { top: 0%; }
+  }
+  .scanline { animation: scanline 2.2s ease-in-out infinite; }
+  .fade-in { animation: fadeIn 0.35s ease-out; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+  .spinner {
+    border: 3px solid rgba(255,255,255,0.25);
+    border-top-color: #fff;
+    border-radius: 50%;
+    width: 22px; height: 22px;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+
+<body class="bg-slate-100 min-h-screen text-slate-800">
+
+<div id="app" class="max-w-md mx-auto min-h-screen bg-slate-50 shadow-xl flex flex-col relative">
+
+  <!-- Header -->
+  <header class="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-slate-200 px-4 py-3 flex items-center gap-3">
+    <div class="w-9 h-9 rounded-xl bg-brand flex items-center justify-center text-white text-lg font-bold shadow">☪</div>
+    <div class="flex-1">
+      <h1 class="text-base font-bold leading-tight text-slate-900">Halal Scanner</h1>
+      <p class="text-[11px] text-slate-500 leading-tight">Scan ingredients • Any language</p>
+    </div>
+    <button id="info-btn" class="w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600" title="How it works">
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </header>
+
+  <!-- Main content -->
+  <main id="main" class="flex-1 flex flex-col px-4 pb-28 pt-4 gap-4 overflow-y-auto">
+
+    <!-- Result banner (hidden until result exists) -->
+    <div id="result-banner" class="hidden fade-in rounded-2xl p-4 shadow-sm border">
+      <div class="flex items-center gap-3">
+        <div id="result-icon" class="text-3xl leading-none"></div>
+        <div class="flex-1 min-w-0">
+          <p id="result-title" class="text-lg font-extrabold leading-tight"></p>
+          <p id="result-subtitle" class="text-xs font-medium opacity-80 mt-0.5"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Camera / capture card -->
+    <div id="capture-card" class="rounded-2xl overflow-hidden bg-black relative aspect-[3/4] flex items-center justify-center shadow-sm border border-slate-200">
+      <video id="camera-video" class="absolute inset-0 w-full h-full object-cover hidden" autoplay playsinline muted></video>
+      <canvas id="capture-canvas" class="hidden"></canvas>
+
+      <!-- Idle state -->
+      <div id="camera-idle" class="text-center text-slate-300 px-6 flex flex-col items-center gap-3">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 0 1 2-2h.93a2 2 0 0 0 1.664-.89l.812-1.22A2 2 0 0 1 10.07 4h3.86a2 2 0 0 1 1.664.89l.812 1.22A2 2 0 0 0 18.07 7H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/>
+          <circle cx="12" cy="13" r="3.5"/>
+        </svg>
+        <p class="text-sm font-medium">Tap "Start Camera" or upload a photo of the ingredient list</p>
+      </div>
+
+      <!-- Scan overlay frame, shown only when camera active -->
+      <div id="scan-overlay" class="hidden absolute inset-0 pointer-events-none">
+        <div class="absolute inset-x-[8%] top-[20%] bottom-[20%] scan-frame rounded-xl">
+          <div class="relative w-full h-full border-2 border-white/80 rounded-xl overflow-hidden">
+            <div class="absolute left-0 right-0 h-0.5 bg-brand/90 shadow-[0_0_8px_2px_rgba(15,118,110,0.8)] scanline"></div>
+            <!-- corner marks -->
+            <div class="absolute -top-0.5 -left-0.5 w-6 h-6 border-t-4 border-l-4 border-halal rounded-tl-lg"></div>
+            <div class="absolute -top-0.5 -right-0.5 w-6 h-6 border-t-4 border-r-4 border-halal rounded-tr-lg"></div>
+            <div class="absolute -bottom-0.5 -left-0.5 w-6 h-6 border-b-4 border-l-4 border-halal rounded-bl-lg"></div>
+            <div class="absolute -bottom-0.5 -right-0.5 w-6 h-6 border-b-4 border-r-4 border-halal rounded-br-lg"></div>
+          </div>
+        </div>
+        <p class="absolute bottom-3 left-0 right-0 text-center text-white text-xs font-medium bg-black/40 mx-6 rounded-full py-1.5 px-2">
+          Align ingredient list inside the frame
+        </p>
+      </div>
+
+      <!-- OCR processing overlay -->
+      <div id="processing-overlay" class="hidden absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-3 text-white z-10">
+        <div class="spinner"></div>
+        <p id="processing-text" class="text-sm font-medium">Reading text…</p>
+        <div class="w-2/3 h-1.5 bg-white/20 rounded-full overflow-hidden">
+          <div id="processing-bar" class="h-full bg-brand transition-all duration-200" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="grid grid-cols-2 gap-3">
+      <button id="start-camera-btn" class="col-span-2 bg-brand hover:bg-teal-800 active:scale-[0.98] transition text-white font-semibold rounded-xl py-3 flex items-center justify-center gap-2 shadow-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 0 1 2-2h.93a2 2 0 0 0 1.664-.89l.812-1.22A2 2 0 0 1 10.07 4h3.86a2 2 0 0 1 1.664.89l.812 1.22A2 2 0 0 0 18.07 7H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/><circle cx="12" cy="13" r="3.5"/></svg>
+        Start Camera
+      </button>
+
+      <button id="capture-btn" disabled class="hidden col-span-2 bg-halal hover:bg-green-700 active:scale-[0.98] transition text-white font-bold rounded-xl py-3.5 flex items-center justify-center gap-2 shadow-sm text-base">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>
+        Capture &amp; Scan
+      </button>
+
+      <button id="stop-camera-btn" class="hidden bg-slate-200 hover:bg-slate-300 active:scale-[0.98] transition text-slate-700 font-semibold rounded-xl py-2.5 text-sm">
+        Cancel
+      </button>
+      <button id="upload-btn" class="bg-white border border-slate-300 hover:bg-slate-50 active:scale-[0.98] transition text-slate-700 font-semibold rounded-xl py-2.5 text-sm flex items-center justify-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-1M7 9l5-5 5 5M12 4v13"/></svg>
+        Upload Image
+      </button>
+      <input id="file-input" type="file" accept="image/*" class="hidden" />
+    </div>
+
+    <!-- Rescan button after result -->
+    <button id="rescan-btn" class="hidden bg-white border border-slate-300 hover:bg-slate-50 active:scale-[0.98] transition text-slate-700 font-semibold rounded-xl py-2.5 text-sm">
+      🔄 Scan Another Product
+    </button>
+
+    <!-- Results detail section -->
+    <div id="results-section" class="hidden flex flex-col gap-4 fade-in">
+
+      <!-- Flagged ingredients -->
+      <div id="flagged-card" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+        <h2 class="text-sm font-bold text-slate-800 mb-2 flex items-center gap-1.5">
+          <span>🚩</span> Flagged Ingredients
+        </h2>
+        <div id="flagged-list" class="flex flex-col gap-2"></div>
+      </div>
+
+      <!-- Detected ingredients breakdown -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+        <h2 class="text-sm font-bold text-slate-800 mb-2 flex items-center gap-1.5">
+          <span>📋</span> Detection Breakdown
+        </h2>
+        <p id="lang-detected" class="text-[11px] text-slate-400 mb-2"></p>
+        <div id="breakdown-list" class="flex flex-col divide-y divide-slate-100"></div>
+      </div>
+
+      <!-- Raw OCR text (collapsible) -->
+      <details class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+        <summary class="text-sm font-bold text-slate-800 cursor-pointer select-none flex items-center gap-1.5">
+          <span>🔎</span> Raw Scanned Text
+        </summary>
+        <pre id="raw-text" class="mt-3 text-xs text-slate-500 whitespace-pre-wrap break-words bg-slate-50 rounded-lg p-3 max-h-48 overflow-y-auto"></pre>
+      </details>
+
+    </div>
+
+    <!-- Empty-state / error message -->
+    <div id="error-box" class="hidden bg-white border border-red-200 rounded-2xl p-4 text-sm text-red-700"></div>
+
+  </main>
+
+  <!-- Disclaimer footer -->
+  <footer class="sticky bottom-0 bg-white/95 backdrop-blur border-t border-slate-200 px-4 py-2.5 text-center">
+    <p class="text-[10.5px] leading-snug text-slate-400">
+      ⚠️ AI-assisted OCR analysis — always verify with official Halal certification. Not a substitute for religious guidance.
+    </p>
+  </footer>
+</div>
+
+<!-- Info modal -->
+<div id="info-modal" class="hidden fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+  <div class="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-5 fade-in max-h-[85vh] overflow-y-auto">
+    <div class="flex justify-between items-center mb-3">
+      <h3 class="font-bold text-lg text-slate-900">How it works</h3>
+      <button id="close-info" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+    </div>
+    <ol class="text-sm text-slate-600 space-y-2 list-decimal list-inside">
+      <li>Point your camera at a product's ingredient list, or upload a photo.</li>
+      <li>On-device OCR (Tesseract.js) extracts the text automatically — no language selection needed.</li>
+      <li>The extracted text is scanned against a Halal/Haram/Mashbooh ingredient database covering common translations, E-numbers, and derivatives.</li>
+      <li>You get an instant color-coded verdict with a breakdown of what was found.</li>
+    </ol>
+    <p class="text-xs text-slate-400 mt-4">This tool provides guidance only and does not replace official Halal certification bodies. When in doubt, contact the manufacturer.</p>
+    <button id="close-info-2" class="mt-4 w-full bg-brand text-white font-semibold rounded-xl py-2.5">Got it</button>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   HALAL SCANNER — App Logic
+   ========================================================================= */
+
+/* ---------- 1. Halal Knowledge Base ----------
+   Each entry: { pattern: RegExp, label: string, status: 'haram'|'mashbooh', reason: string }
+   Patterns include English + common transliterations/translations
+   (Arabic, French, German, Japanese/Korean romanized & script, Chinese, etc.)
+--------------------------------------------------------------------------- */
+const HARAM_PATTERNS = [
+  // Pork & derivatives
+  { key: 'pork', label: 'Pork / Pork derivative', reason: 'Pork and its derivatives are strictly Haram.',
+    re: /\b(pork|porcine|swine|lard|bacon|ham(?!ster)|pancetta|prosciutto|豚肉|ぶたにく|豚|돼지고기|돼지|猪肉|猪油|schweinefleisch|schwein|porc|viande de porc|جيلاتين\s*خنزير|لحم\s*خنزير|خنزير)\b/i },
+  { key: 'gelatin', label: 'Gelatin/Gelatine (unspecified source)', reason: 'Gelatin is often derived from pork or non-halal-slaughtered animals unless labeled "halal", "beef", or "fish" gelatin.',
+    re: /\b(gelatine?|gélatine|gelatina|ゼラチン|젤라틴|明胶|جيلاتين)\b(?!\s*(halal|beef gelatin from halal|fish))/i },
+  { key: 'pepsin', label: 'Pepsin', reason: 'Pepsin is commonly extracted from pig stomach lining.',
+    re: /\bpepsin\b/i },
+  { key: 'rennet', label: 'Animal Rennet (unspecified)', reason: 'Non-microbial/non-halal rennet may come from non-halal-slaughtered animals.',
+    re: /\b(animal rennet|rennet)\b(?!\s*(microbial|vegetable|halal))/i },
+
+  // Alcohol
+  { key: 'alcohol', label: 'Alcohol / Ethanol', reason: 'Alcohol and ethanol (beyond trace/technical amounts) are Haram as intoxicants.',
+    re: /\b(alcohol|ethanol|ethyl alcohol|grain alcohol|アルコール|알코올|酒精|الكحول|alkohol)\b/i },
+  { key: 'wine', label: 'Wine / Cooking Wine', reason: 'Wine and cooking wine are alcoholic and Haram.',
+    re: /\b(wine|cooking wine|shaoxing wine|料理酒|清酒|米酒|와인|요리술|vin de cuisine|wein)\b/i },
+  { key: 'mirin', label: 'Mirin (rice wine)', reason: 'Mirin is a fermented alcoholic rice seasoning.',
+    re: /\b(mirin|みりん|味醂)\b/i },
+  { key: 'sake', label: 'Sake / Rice Wine', reason: 'Sake is an alcoholic rice wine.',
+    re: /\b(sake|清酒|정종)\b/i },
+  { key: 'beer', label: 'Beer / Ale / Lager', reason: 'Beer is an alcoholic beverage.',
+    re: /\b(beer|ale|lager|stout|ビール|맥주|啤酒|bier|bière)\b/i },
+  { key: 'rum', label: 'Rum / Liquor / Spirits', reason: 'Distilled spirits are Haram intoxicants.',
+    re: /\b(rum|whisk(e)?y|vodka|brandy|liqueur|liquor|schnapps|cognac|gin(?!ger)|tequila|bourbon)\b/i },
+  { key: 'vanilla-extract', label: 'Vanilla Extract (alcohol-based)', reason: 'Pure vanilla extract typically contains ~35% ethanol; use imitation/alcohol-free vanilla instead.',
+    re: /\b(vanilla extract|pure vanilla)\b/i },
+
+  // Animal fat / tallow
+  { key: 'tallow', label: 'Tallow / Animal Fat (unspecified)', reason: 'Non-halal-slaughtered animal fat/tallow is Haram; source must be verified.',
+    re: /\b(tallow|animal fat|animal shortening|suet)\b(?!\s*(halal|vegetable|plant))/i },
+
+  // Carmine
+  { key: 'carmine', label: 'Carmine / Cochineal / E120', reason: 'Carmine (E120) is derived from crushed insects; considered Haram or at minimum highly Mashbooh by most scholars.',
+    re: /\b(carmine|cochineal|e[\s-]?120|カルミン|연지벌레|胭脂虫)\b/i },
+
+  // L-cysteine from human hair/feathers
+  { key: 'l-cysteine', label: 'L-Cysteine (unspecified source)', reason: 'L-Cysteine (E920) can be derived from human hair, feathers, or animal sources.',
+    re: /\b(l-cysteine|e[\s-]?920)\b(?!\s*(synthetic|vegetable|plant))/i },
+];
+
+const MASHBOOH_PATTERNS = [
+  { key: 'e471', label: 'E471 (Mono- and diglycerides)', reason: 'Source (animal or plant) is often unspecified — could be non-halal animal fat.',
+    re: /\b(e[\s-]?471|mono-?\s*and\s*di-?glycerides)\b/i },
+  { key: 'e472', label: 'E472 (a-f) Fatty acid esters', reason: 'These emulsifiers may be derived from animal fat of unspecified/non-halal source.',
+    re: /\be[\s-]?472[a-f]?\b/i },
+  { key: 'e422', label: 'E422 (Glycerol/Glycerin)', reason: 'Glycerin can be sourced from animal fat; source needs verification.',
+    re: /\b(e[\s-]?422|glycerin|glycerol|グリセリン|甘油)\b/i },
+  { key: 'e441', label: 'E441 (Gelatin)', reason: 'E441 is gelatin — source (pork/beef/fish) is often unclear.',
+    re: /\be[\s-]?441\b/i },
+  { key: 'e542', label: 'E542 (Bone Phosphate)', reason: 'Bone phosphate source animal is often unspecified.',
+    re: /\be[\s-]?542\b/i },
+  { key: 'e631-635', label: 'E631/E627/E635 (Flavor enhancers)', reason: 'These nucleotide-based enhancers can be derived from animal or fish sources; verify halal status.',
+    re: /\be[\s-]?(631|627|635)\b/i },
+  { key: 'emulsifier-generic', label: 'Emulsifier (unspecified source)', reason: 'Generic "emulsifier" labeling without a specified plant/synthetic source is Mashbooh.',
+    re: /\bemulsifier(s)?\b(?!\s*(soy|sunflower|plant|vegetable|synthetic))/i },
+  { key: 'natural-flavor', label: 'Natural Flavor(s) / Flavoring (unspecified)', reason: 'Natural flavors can occasionally derive from animal sources (including alcohol carriers); source is often undisclosed.',
+    re: /\b(natural flavou?rs?|natural flavoring)\b/i },
+  { key: 'whey', label: 'Whey / Rennet Casein (unspecified)', reason: 'Cheese-derived whey may use non-halal animal rennet in production.',
+    re: /\b(whey|rennet casein)\b(?!\s*(vegetarian|microbial|halal))/i },
+  { key: 'mono-glyceride', label: 'Mono-glyceride / Diglyceride (generic)', reason: 'Same concern as E471 — animal or plant source unspecified.',
+    re: /\b(monoglyceride|diglyceride)\b/i },
+];
+
+/* ---------- 2. DOM references ---------- */
+const $ = (id) => document.getElementById(id);
+const video = $('camera-video');
+const canvas = $('capture-canvas');
+const cameraIdle = $('camera-idle');
+const scanOverlay = $('scan-overlay');
+const processingOverlay = $('processing-overlay');
+const processingText = $('processing-text');
+const processingBar = $('processing-bar');
+
+const startCameraBtn = $('start-camera-btn');
+const captureBtn = $('capture-btn');
+const stopCameraBtn = $('stop-camera-btn');
+const uploadBtn = $('upload-btn');
+const fileInput = $('file-input');
+const rescanBtn = $('rescan-btn');
+
+const resultBanner = $('result-banner');
+const resultIcon = $('result-icon');
+const resultTitle = $('result-title');
+const resultSubtitle = $('result-subtitle');
+
+const resultsSection = $('results-section');
+const flaggedCard = $('flagged-card');
+const flaggedList = $('flagged-list');
+const breakdownList = $('breakdown-list');
+const langDetected = $('lang-detected');
+const rawText = $('raw-text');
+const errorBox = $('error-box');
+
+let mediaStream = null;
+
+/* ---------- 3. Camera handling ---------- */
+async function startCamera() {
+  hideError();
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false
+    });
+    video.srcObject = mediaStream;
+    video.classList.remove('hidden');
+    cameraIdle.classList.add('hidden');
+    scanOverlay.classList.remove('hidden');
+
+    startCameraBtn.classList.add('hidden');
+    captureBtn.classList.remove('hidden');
+    captureBtn.disabled = false;
+    stopCameraBtn.classList.remove('hidden');
+    uploadBtn.classList.add('hidden');
+  } catch (err) {
+    console.error(err);
+    showError('Could not access camera: ' + (err.message || 'permission denied') + '. Try "Upload Image" instead.');
+  }
+}
+
+function stopCamera() {
+  if (mediaStream) {
+    mediaStream.getTracks().forEach(t => t.stop());
+    mediaStream = null;
+  }
+  video.classList.add('hidden');
+  scanOverlay.classList.add('hidden');
+  cameraIdle.classList.remove('hidden');
+
+  startCameraBtn.classList.remove('hidden');
+  captureBtn.classList.add('hidden');
+  stopCameraBtn.classList.add('hidden');
+  uploadBtn.classList.remove('hidden');
+}
+
+function captureFrame() {
+  const w = video.videoWidth, h = video.videoHeight;
+  if (!w || !h) return;
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, w, h);
+  stopCamera();
+  canvas.toBlob((blob) => runOCR(blob), 'image/jpeg', 0.95);
+}
+
+/* ---------- 4. Upload fallback ---------- */
+function handleFileUpload(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  hideError();
+  runOCR(file);
+  fileInput.value = '';
+}
+
+/* ---------- 5. OCR pipeline (Tesseract.js, auto multi-language) ---------- */
+// Language set covers major scripts; Tesseract auto-detects best match among these.
+const OCR_LANGS = 'eng+ara+jpn+kor+chi_sim+chi_tra+fra+deu+spa+ind';
+
+async function runOCR(imageSource) {
+  showResultsHidden();
+  processingOverlay.classList.remove('hidden');
+  $('capture-card').classList.remove('hidden');
+  processingText.textContent = 'Loading OCR engine…';
+  processingBar.style.width = '5%';
+
+  try {
+    const result = await Tesseract.recognize(imageSource, OCR_LANGS, {
+      logger: (m) => {
+        if (m.status) {
+          processingText.textContent = describeStatus(m.status);
+        }
+        if (typeof m.progress === 'number') {
+          processingBar.style.width = Math.max(5, Math.round(m.progress * 100)) + '%';
+        }
+      }
+    });
+
+    const text = (result.data && result.data.text) ? result.data.text.trim() : '';
+    processingOverlay.classList.add('hidden');
+
+    if (!text || text.length < 3) {
+      showError('No readable text was found. Try better lighting, hold the camera steady, or move closer to the ingredient list.');
+      resetToIdle();
+      return;
+    }
+
+    analyzeText(text);
+  } catch (err) {
+    console.error(err);
+    processingOverlay.classList.add('hidden');
+    showError('OCR failed: ' + (err.message || 'unknown error') + '. Please try again with a clearer photo.');
+    resetToIdle();
+  }
+}
+
+function describeStatus(status) {
+  const map = {
+    'loading tesseract core': 'Loading OCR engine…',
+    'initializing tesseract': 'Initializing…',
+    'loading language traineddata': 'Loading language data…',
+    'initializing api': 'Preparing scanner…',
+    'recognizing text': 'Reading ingredient text…'
+  };
+  return map[status] || status;
+}
+
+function resetToIdle() {
+  startCameraBtn.classList.remove('hidden');
+  captureBtn.classList.add('hidden');
+  stopCameraBtn.classList.add('hidden');
+  uploadBtn.classList.remove('hidden');
+  cameraIdle.classList.remove('hidden');
+}
+
+/* ---------- 6. Halal analysis logic ---------- */
+function analyzeText(text) {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+
+  const haramHits = [];
+  const mashboohHits = [];
+
+  HARAM_PATTERNS.forEach(p => {
+    const m = normalized.match(p.re);
+    if (m) haramHits.push({ label: p.label, reason: p.reason, matchedText: m[0], status: 'haram' });
+  });
+
+  MASHBOOH_PATTERNS.forEach(p => {
+    const m = normalized.match(p.re);
+    if (m) mashboohHits.push({ label: p.label, reason: p.reason, matchedText: m[0], status: 'mashbooh' });
+  });
+
+  let verdict;
+  if (haramHits.length > 0) verdict = 'haram';
+  else if (mashboohHits.length > 0) verdict = 'mashbooh';
+  else verdict = 'halal';
+
+  renderResult(verdict, haramHits, mashboohHits, normalized);
+}
+
+/* ---------- 7. Rendering ---------- */
+function showResultsHidden() {
+  resultBanner.classList.add('hidden');
+  resultsSection.classList.add('hidden');
+  rescanBtn.classList.add('hidden');
+  hideError();
+}
+
+function renderResult(verdict, haramHits, mashboohHits, fullText) {
+  resultBanner.classList.remove('hidden');
+  resultsSection.classList.remove('hidden');
+  rescanBtn.classList.remove('hidden');
+
+  resultBanner.className = 'fade-in rounded-2xl p-4 shadow-sm border';
+  const configs = {
+    halal: {
+      icon: '🟢', title: 'HALAL / SAFE', sub: 'No Haram or questionable ingredients detected.',
+      classes: 'bg-halal-light border-green-300 text-halal-dark'
+    },
+    mashbooh: {
+      icon: '🟡', title: 'DOUBTFUL / MASHBOOH', sub: 'Contains questionable additives — verify with manufacturer or certification.',
+      classes: 'bg-mashbooh-light border-amber-300 text-mashbooh-dark'
+    },
+    haram: {
+      icon: '🔴', title: 'NOT HALAL / HARAM', sub: 'Contains ingredients that are not permissible.',
+      classes: 'bg-haram-light border-red-300 text-haram-dark'
+    }
+  };
+  const c = configs[verdict];
+  resultBanner.classList.add(...c.classes.split(' '));
+  resultIcon.textContent = c.icon;
+  resultTitle.textContent = c.title;
+  resultSubtitle.textContent = c.sub;
+
+  // Flagged ingredients card
+  const allHits = [...haramHits, ...mashboohHits];
+  flaggedList.innerHTML = '';
+  if (allHits.length > 0) {
+    flaggedCard.classList.remove('hidden');
+    allHits.forEach(hit => {
+      const isHaram = hit.status === 'haram';
+      const row = document.createElement('div');
+      row.className = `rounded-xl p-3 border ${isHaram ? 'bg-haram-light/60 border-red-200' : 'bg-mashbooh-light/60 border-amber-200'}`;
+      row.innerHTML = `
+        <div class="flex items-start gap-2">
+          <span class="text-base leading-none mt-0.5">${isHaram ? '🔴' : '🟡'}</span>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-bold ${isHaram ? 'text-haram-dark' : 'text-mashbooh-dark'}">${escapeHTML(hit.label)}</p>
+            <p class="text-xs text-slate-600 mt-0.5">${escapeHTML(hit.reason)}</p>
+            <p class="text-[11px] text-slate-400 mt-1">Matched: "${escapeHTML(hit.matchedText)}"</p>
+          </div>
+        </div>`;
+      flaggedList.appendChild(row);
+    });
+  } else {
+    flaggedCard.classList.add('hidden');
+  }
+
+  // Breakdown list — summary counts
+  breakdownList.innerHTML = '';
+  const summaryRows = [
+    { label: 'Haram ingredients found', count: haramHits.length, color: 'text-haram' },
+    { label: 'Doubtful (Mashbooh) items', count: mashboohHits.length, color: 'text-mashbooh' },
+    { label: 'Characters scanned', count: fullText.length, color: 'text-slate-500' }
+  ];
+  summaryRows.forEach(r => {
+    const row = document.createElement('div');
+    row.className = 'flex items-center justify-between py-2 text-sm';
+    row.innerHTML = `<span class="text-slate-600">${r.label}</span><span class="font-bold ${r.color}">${r.count}</span>`;
+    breakdownList.appendChild(row);
+  });
+
+  langDetected.textContent = 'Text extracted via multi-language OCR (auto-detected script)';
+  rawText.textContent = fullText;
+
+  // scroll result into view
+  resultBanner.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function escapeHTML(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function showError(msg) {
+  errorBox.textContent = '⚠️ ' + msg;
+  errorBox.classList.remove('hidden');
+}
+function hideError() {
+  errorBox.classList.add('hidden');
+  errorBox.textContent = '';
+}
+
+/* ---------- 8. Rescan / reset ---------- */
+function fullReset() {
+  showResultsHidden();
+  resetToIdle();
+  $('capture-card').classList.remove('hidden');
+}
+
+/* ---------- 9. Event bindings ---------- */
+startCameraBtn.addEventListener('click', startCamera);
+stopCameraBtn.addEventListener('click', () => { stopCamera(); });
+captureBtn.addEventListener('click', captureFrame);
+uploadBtn.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', handleFileUpload);
+rescanBtn.addEventListener('click', fullReset);
+
+$('info-btn').addEventListener('click', () => $('info-modal').classList.remove('hidden'));
+$('close-info').addEventListener('click', () => $('info-modal').classList.add('hidden'));
+$('close-info-2').addEventListener('click', () => $('info-modal').classList.add('hidden'));
+$('info-modal').addEventListener('click', (e) => { if (e.target.id === 'info-modal') $('info-modal').classList.add('hidden'); });
+
+// Warn if not on HTTPS/localhost (camera requires secure context)
+window.addEventListener('DOMContentLoaded', () => {
+  const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  if (!isSecure) {
+    showError('Camera access requires HTTPS (or localhost). You can still use "Upload Image".');
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    startCameraBtn.disabled = true;
+    startCameraBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    showError('Your browser does not support camera access. Please use "Upload Image".');
+  }
+});
+</script>
+</body>
+</html>
