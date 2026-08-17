@@ -350,7 +350,7 @@
     <ol class="text-sm text-[#cfe9dc] space-y-2 list-decimal list-inside">
       <li>Choose "Ingredient List" or "Image" mode, then point your camera or upload a photo.</li>
       <li>In Ingredient List mode, the text is read automatically &mdash; no language selection needed. In Image mode, the photo's visual content is identified instead.</li>
-      <li>By default this runs fully on-device and free (Tesseract.js for text, MobileNet for images). If you add a Google Cloud API key in Settings, the app uses Google Cloud Vision instead &mdash; far more accurate OCR, automatic language detection, translation to English for matching, and Vision label/web detection (the closest available equivalent to Google Lens, which has no public API).</li>
+      <li>By default this runs fully on-device and free (Tesseract.js for text, MobileNet for images). If you add a Gemini API key in Settings, the app uses Gemini instead &mdash; far more accurate OCR with automatic language detection and English translation for matching, and Gemini-based photo identification (the closest available equivalent to Google Lens, which has no public API).</li>
       <li>Results are checked against a Halal / Haram / Mashbooh database covering common translations, E-numbers, derivatives, and visual cues.</li>
       <li>The photo on screen tints green, red, or amber with an instant verdict.</li>
     </ol>
@@ -359,23 +359,22 @@
   </div>
 </div>
 
-<!-- Settings modal: optional Google Cloud Vision / Translation API key -->
+<!-- Settings modal: optional Gemini API key -->
 <div id="settings-modal" class="hidden fixed inset-0 z-50 bg-black/65 flex items-end sm:items-center justify-center p-0 sm:p-4">
   <div class="bg-[#0c2e1e] rounded-t-2xl sm:rounded-2xl w-full max-w-md p-5 fade-in max-h-[85vh] overflow-y-auto border-t-2 sm:border-2 border-gold text-[var(--cream)]">
     <div class="flex justify-between items-center mb-3">
-      <h3 class="font-display font-bold text-lg text-gold tracking-wide">CLOUD RECOGNITION</h3>
+      <h3 class="font-display font-bold text-lg text-gold tracking-wide">GEMINI RECOGNITION</h3>
       <button id="close-settings" class="text-[#cfe9dc]/70 hover:text-white text-2xl leading-none">&times;</button>
     </div>
 
     <p class="text-xs text-[#cfe9dc] leading-relaxed">
       By default this app recognizes text and images fully on-device (free, private, but sometimes inaccurate). For much higher accuracy, add your own
-      <span class="text-gold font-semibold">Google Cloud API key</span> below — the app will then use
-      <span class="text-gold font-semibold">Cloud Vision</span> (OCR + label/web detection, the closest available equivalent to Google Lens, which has no public API) and
-      <span class="text-gold font-semibold">Cloud Translation</span> (to translate detected text to English before matching, improving accuracy across languages).
+      <span class="text-gold font-semibold">Gemini API key</span> below — the app will then send the photo to
+      <span class="text-gold font-semibold">Gemini</span>, which reads the ingredient text (with automatic language detection and English translation for matching) in Ingredient List mode, and identifies the product/dish/objects in the photo &mdash; the closest available equivalent to Google Lens, which has no public API &mdash; in Image mode.
     </p>
 
     <div class="mt-4">
-      <label class="text-[11px] font-semibold text-gold tracking-wide uppercase">Google Cloud API Key</label>
+      <label class="text-[11px] font-semibold text-gold tracking-wide uppercase">Gemini API Key</label>
       <div class="flex gap-2 mt-1.5">
         <input id="google-api-key-input" type="password" autocomplete="off" placeholder="AIza..." class="flex-1 min-w-0 bg-black/30 border border-white/15 rounded-lg px-3 py-2 text-sm text-[var(--cream)] placeholder:text-[#6d8a7a] focus:outline-none focus:border-gold/60" />
         <button id="toggle-key-visibility" type="button" class="shrink-0 px-3 rounded-lg border border-white/15 text-xs text-[#cfe9dc] hover:bg-white/10">Show</button>
@@ -386,13 +385,12 @@
     <details class="mt-4 text-xs text-[#a9c9b8]">
       <summary class="cursor-pointer select-none text-gold font-semibold">How to get an API key</summary>
       <ol class="list-decimal list-inside space-y-1 mt-2">
-        <li>Open the Google Cloud Console and create (or select) a project.</li>
-        <li>Enable the <span class="text-[#cfe9dc]">Cloud Vision API</span> and, optionally, the <span class="text-[#cfe9dc]">Cloud Translation API</span>.</li>
-        <li>Go to APIs &amp; Services &rarr; Credentials &rarr; Create Credentials &rarr; API key.</li>
-        <li>Restrict the key to those two APIs (and ideally to your site's domain) for safety.</li>
+        <li>Open <span class="text-[#cfe9dc]">Google AI Studio</span> (aistudio.google.com) and sign in.</li>
+        <li>Go to "Get API key" and create a new key (this also enables the Gemini API on a Google Cloud project for you).</li>
+        <li>Copy the key — it should start with <span class="text-[#cfe9dc]">AIza</span>.</li>
         <li>Paste the key above. It is used only in this browser, sent directly to Google, and is <span class="text-[#cfe9dc]">not saved anywhere</span> — you'll need to re-enter it if you reload the page.</li>
       </ol>
-      <p class="mt-2">Google Cloud Vision has a free monthly quota (roughly 1,000 units/month at time of writing); usage beyond that is billed by Google. Check the current pricing in your Cloud Console before relying on this for heavy use.</p>
+      <p class="mt-2">Gemini has a free tier with rate limits (requests per minute/day); heavier use may require enabling billing. Check current limits and pricing at ai.google.dev before relying on this for heavy use.</p>
     </details>
 
     <div class="flex gap-3 mt-5">
@@ -539,10 +537,9 @@ let mediaStream = null;
 let scanMode = 'text'; // 'text' = ingredient list OCR only, 'image' = product photo recognition only
 // Kept in memory only for this page session — never persisted to disk, cleared on reload.
 // NOTE: pre-filled with the key supplied by the app owner as a convenience default.
-// This does NOT look like a standard Google Cloud "API key" (those start with "AIza...").
-// If Cloud Vision/Translation calls fail with 400/401 below, generate a proper API key
-// (APIs & Services -> Credentials -> Create Credentials -> API key) and replace this value,
-// or paste the correct key into Settings in the app instead of editing this file.
+// Standard Gemini API keys from Google AI Studio (aistudio.google.com) start with "AIza...".
+// If Gemini calls fail with 400/401 below, generate a proper key there and replace this
+// value, or paste the correct key into Settings in the app instead of editing this file.
 let googleApiKey = 'AQ.Ab8RN6I3_hCwgutuh1jm2snvITfjYiod0N_ECTX4UKBgHlavLw';
 
 const MODE_COPY = {
@@ -669,10 +666,15 @@ function handleFileUpload(e) {
 /* ---------- 5. Analysis pipeline ----------
    Two engines are supported for each mode:
    - On-device (default, free, private): Tesseract.js for text, MobileNet for images.
-   - Google Cloud (optional, requires the user's own API key set in Settings):
-     Cloud Vision for OCR + label/web detection, Cloud Translation to translate
-     detected text to English before matching (improves cross-language recall). */
+   - Gemini (optional, requires the user's own Google AI Studio API key set in Settings):
+     a single multimodal Gemini call does OCR + language detection + English
+     translation for Ingredient List mode, and photo/object identification
+     (the closest available equivalent to Google Lens, which has no public API)
+     for Image mode. */
 const OCR_LANGS = 'eng+ara+jpn+kor+chi_sim+chi_tra+fra+deu+spa+ind';
+
+// Change this if your key doesn't have access to this model, or Google renames/retires it.
+const GEMINI_MODEL = 'gemini-2.0-flash';
 
 let mobilenetModel = null;
 let mobilenetLoadFailed = false;
@@ -696,58 +698,78 @@ function canvasToBase64() {
   return dataUrl.split(',')[1] || '';
 }
 
-async function callVisionOCR(base64) {
-  const res = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${encodeURIComponent(googleApiKey)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ requests: [{ image: { content: base64 }, features: [{ type: 'TEXT_DETECTION' }] }] })
-  });
-  if (!res.ok) throw new Error('Cloud Vision HTTP ' + res.status);
-  const data = await res.json();
-  const resp = data.responses && data.responses[0];
-  if (resp && resp.error) throw new Error(resp.error.message || 'Cloud Vision error');
-  const text = (resp && resp.fullTextAnnotation && resp.fullTextAnnotation.text)
-    || (resp && resp.textAnnotations && resp.textAnnotations[0] && resp.textAnnotations[0].description) || '';
-  let languageCode = '';
-  try { languageCode = resp.fullTextAnnotation.pages[0].property.detectedLanguages[0].languageCode; } catch (e) { /* no-op */ }
-  return { text: text.trim(), languageCode };
+/* Strip ```json ... ``` code fences some models wrap JSON in, then parse. */
+function parseJsonLoose(raw) {
+  if (!raw) throw new Error('Empty Gemini response');
+  let cleaned = raw.trim();
+  cleaned = cleaned.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+  if (start !== -1 && end !== -1 && end > start) cleaned = cleaned.slice(start, end + 1);
+  return JSON.parse(cleaned);
 }
 
-async function callVisionTranslate(text, target) {
-  const res = await fetch(`https://translation.googleapis.com/language/translate/v2?key=${encodeURIComponent(googleApiKey)}`, {
+async function callGemini(base64, promptText) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(googleApiKey)}`;
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ q: text, target })
+    body: JSON.stringify({
+      contents: [{
+        parts: [
+          { text: promptText },
+          { inline_data: { mime_type: 'image/jpeg', data: base64 } }
+        ]
+      }],
+      generationConfig: { temperature: 0, responseMimeType: 'application/json' }
+    })
   });
-  if (!res.ok) throw new Error('Cloud Translation HTTP ' + res.status);
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => '');
+    throw new Error(`Gemini HTTP ${res.status}${errBody ? ' — ' + errBody.slice(0, 200) : ''}`);
+  }
   const data = await res.json();
-  const translations = data.data && data.data.translations;
-  if (!translations || !translations[0]) throw new Error('No translation returned');
-  return translations[0].translatedText;
+  if (data.promptFeedback && data.promptFeedback.blockReason) {
+    throw new Error('Gemini blocked the request: ' + data.promptFeedback.blockReason);
+  }
+  const candidate = data.candidates && data.candidates[0];
+  const raw = candidate && candidate.content && candidate.content.parts && candidate.content.parts.map(p => p.text || '').join('');
+  return parseJsonLoose(raw);
 }
 
-async function callVisionLabels(base64) {
-  const res = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${encodeURIComponent(googleApiKey)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ requests: [{ image: { content: base64 }, features: [{ type: 'LABEL_DETECTION', maxResults: 8 }, { type: 'WEB_DETECTION', maxResults: 5 }] }] })
-  });
-  if (!res.ok) throw new Error('Cloud Vision HTTP ' + res.status);
-  const data = await res.json();
-  const resp = data.responses && data.responses[0];
-  if (resp && resp.error) throw new Error(resp.error.message || 'Cloud Vision error');
+/* Ingredient List mode: OCR + language detection + English translation in one call. */
+async function callGeminiTextExtraction(base64) {
+  const prompt = `You are an OCR and translation assistant analyzing a photo of a food product's ingredient list.
+1. Extract every piece of readable printed text exactly as shown, preserving the original language and line breaks.
+2. Detect the primary language of the extracted text.
+3. Translate the extracted text into English.
+Respond with ONLY strict JSON, no markdown formatting, in exactly this shape:
+{"detectedLanguage":"<language name>","originalText":"<verbatim extracted text>","englishText":"<English translation>"}
+If there is no readable text in the image, respond with:
+{"detectedLanguage":"","originalText":"","englishText":""}`;
+  const json = await callGemini(base64, prompt);
+  return {
+    originalText: (json.originalText || '').trim(),
+    englishText: (json.englishText || '').trim(),
+    detectedLanguage: (json.detectedLanguage || '').trim()
+  };
+}
 
-  const labels = [];
-  (resp.labelAnnotations || []).forEach(l => labels.push({ label: l.description, probability: l.score || 0 }));
-  const webEntities = (resp.webDetection && resp.webDetection.webEntities) || [];
-  webEntities.forEach(e => { if (e.description) labels.push({ label: e.description, probability: e.score || 0 }); });
-
-  const seen = new Map();
-  labels.forEach(l => {
-    const key = l.label.toLowerCase();
-    if (!seen.has(key) || seen.get(key).probability < l.probability) seen.set(key, l);
-  });
-  return Array.from(seen.values()).sort((a, b) => b.probability - a.probability).slice(0, 8);
+/* Image mode: identify the product/dish/objects in the photo, Google-Lens-style. */
+async function callGeminiImageRecognition(base64) {
+  const prompt = `You are a visual product/food recognition assistant, similar to Google Lens.
+Look at this photo and identify the specific food items, drinks, animals, or objects visible — especially
+anything relevant to Halal dietary assessment, such as wine, beer, cocktails, alcohol bottles/glasses,
+pork, bacon, ham, pig/boar/hog, gelatin-based desserts, or other non-halal meat.
+Respond with ONLY strict JSON, no markdown formatting, in exactly this shape:
+{"items":[{"label":"<short item name>","confidence":<number between 0 and 1>}]}
+Include up to 8 items, most relevant/confident first. If nothing recognizable is visible, respond with {"items":[]}.`;
+  const json = await callGemini(base64, prompt);
+  const items = Array.isArray(json.items) ? json.items : [];
+  return items
+    .filter(it => it && it.label)
+    .map(it => ({ label: String(it.label), probability: typeof it.confidence === 'number' ? it.confidence : 0.5 }))
+    .slice(0, 8);
 }
 
 async function runOCR(imageSource) {
@@ -767,27 +789,17 @@ async function runOCR(imageSource) {
   if (scanMode === 'text') {
     if (useCloud) {
       try {
-        processingText.textContent = 'Contacting Google Cloud Vision…';
+        processingText.textContent = 'Contacting Gemini…';
         processingBar.style.width = '20%';
         const base64 = canvasToBase64();
-        const ocrResult = await callVisionOCR(base64);
-        text = ocrResult.text;
-        matchText = text;
+        const ocrResult = await callGeminiTextExtraction(base64);
+        text = ocrResult.originalText;
+        matchText = ocrResult.englishText || ocrResult.originalText;
         usedCloud = true;
-        processingBar.style.width = '65%';
-        if (text && ocrResult.languageCode && ocrResult.languageCode !== 'en') {
-          try {
-            processingText.textContent = 'Translating to English for matching…';
-            const translated = await callVisionTranslate(text, 'en');
-            if (translated) matchText = translated;
-          } catch (err) {
-            console.error('Cloud Translation failed (continuing with original text):', err);
-          }
-        }
         processingBar.style.width = '100%';
       } catch (err) {
-        console.error('Cloud Vision OCR failed, falling back to on-device OCR:', err);
-        cloudWarning = 'Cloud Vision was unreachable (check your API key, billing, or network) — used free on-device OCR instead.';
+        console.error('Gemini OCR failed, falling back to on-device OCR:', err);
+        cloudWarning = 'Gemini was unreachable (check your API key or network) — used free on-device OCR instead.';
       }
     }
     if (!usedCloud) {
@@ -810,15 +822,15 @@ async function runOCR(imageSource) {
   } else {
     if (useCloud) {
       try {
-        processingText.textContent = 'Contacting Google Cloud Vision…';
+        processingText.textContent = 'Contacting Gemini…';
         processingBar.style.width = '30%';
         const base64 = canvasToBase64();
-        imageLabels = await callVisionLabels(base64);
+        imageLabels = await callGeminiImageRecognition(base64);
         usedCloud = true;
         processingBar.style.width = '100%';
       } catch (err) {
-        console.error('Cloud Vision labels failed, falling back to on-device recognizer:', err);
-        cloudWarning = 'Cloud Vision was unreachable (check your API key, billing, or network) — used free on-device image recognition instead.';
+        console.error('Gemini image recognition failed, falling back to on-device recognizer:', err);
+        cloudWarning = 'Gemini was unreachable (check your API key or network) — used free on-device image recognition instead.';
       }
     }
     if (!usedCloud) {
@@ -978,7 +990,7 @@ function renderResult(verdict, haramHits, mashboohHits, fullText, imageLabels, u
     allHits.forEach(hit => {
       const isHaram = hit.status === 'haram';
       const sourceBase = hit.source === 'image' ? 'Product Photo' : 'Ingredient Text';
-      const sourceLabel = `${sourceBase} · ${usedCloud ? 'Cloud' : 'On-device'}`;
+      const sourceLabel = `${sourceBase} · ${usedCloud ? 'Gemini' : 'On-device'}`;
       const row = document.createElement('div');
       row.className = `rounded-xl p-3 border ${isHaram ? 'bg-red-950/40 border-red-500/40' : 'bg-amber-950/30 border-amber-400/40'}`;
       row.innerHTML = `
@@ -1018,18 +1030,18 @@ function renderResult(verdict, haramHits, mashboohHits, fullText, imageLabels, u
 
   if (scanMode === 'text') {
     langDetected.textContent = usedCloud
-      ? 'Ingredient text extracted via Google Cloud Vision, translated to English for matching when needed'
+      ? 'Ingredient text extracted and translated to English for matching via Gemini'
       : 'Ingredient text extracted via multi-language OCR (auto-detected script), analyzed locally';
   } else {
     langDetected.textContent = usedCloud
-      ? 'Product photo analyzed via Google Cloud Vision (label + web detection)'
+      ? 'Product photo identified via Gemini (multimodal image understanding)'
       : 'Product photo analyzed via on-device image recognition, analyzed locally';
   }
 
   rawTextDetails.classList.toggle('hidden', scanMode !== 'text');
   rawText.textContent = fullText || '(no readable text found)';
 
-  // Non-blocking notice if Cloud Vision failed and we fell back to the free on-device engine
+  // Non-blocking notice if Gemini failed and we fell back to the free on-device engine
   if (cloudWarning) {
     showError(cloudWarning);
   }
@@ -1077,7 +1089,7 @@ function fullReset() {
 /* ---------- 8b. Settings (Google Cloud API key) ---------- */
 function refreshSettingsStatus() {
   if (googleApiKey) {
-    settingsStatus.textContent = 'Cloud recognition is active for this session (Google Cloud Vision + Translation).';
+    settingsStatus.textContent = 'Gemini recognition is active for this session.';
     settingsDot.classList.remove('hidden');
   } else {
     settingsStatus.textContent = 'Not set — using free on-device recognition.';
