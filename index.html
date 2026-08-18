@@ -435,25 +435,31 @@
    ========================================================================= */
 
 /* ---------- 1. Halal Knowledge Base ---------- */
+// NOTE on multi-script matching: JS regex `\b` (word boundary) only recognizes ASCII
+// [A-Za-z0-9_] as "word" characters. Wrapping non-Latin script terms (Chinese, Japanese,
+// Korean, Arabic) inside \b...\b — as earlier versions of this list did — means `\b` never
+// asserts true next to those characters, so those terms silently NEVER MATCH, no matter how
+// exact the OCR text is. Every pattern below keeps `\b...\b` only around the Latin-script
+// alternatives, and lists non-Latin terms as plain (unanchored) alternatives outside that group.
 const HARAM_PATTERNS = [
   { key: 'pork', label: 'Pork / Pork derivative', reason: 'Pork and its derivatives are strictly Haram.',
-    re: /\b(pork|porcine|swine|lard|bacon|ham(?!ster)|pancetta|prosciutto|豚肉|ぶたにく|豚|돼지고기|돼지|猪肉|猪油|schweinefleisch|schwein|porc|viande de porc|جيلاتين\s*خنزير|لحم\s*خنزير|خنزير)\b/i },
+    re: /\b(pork|porcine|swine|lard|bacon|ham(?!ster)|pancetta|prosciutto|schweinefleisch|schwein|porc|viande de porc)\b|豚肉|ぶたにく|豚|돼지고기|돼지|猪肉|豬肉|猪油|豬油|جيلاتين\s*خنزير|لحم\s*خنزير|خنزير/i },
   { key: 'gelatin', label: 'Gelatin/Gelatine (unspecified source)', reason: 'Gelatin is often derived from pork or non-halal-slaughtered animals unless labeled "halal", "beef", or "fish" gelatin.',
-    re: /\b(gelatine?|gélatine|gelatina|ゼラチン|젤라틴|明胶|جيلاتين)\b(?!\s*(halal|beef gelatin from halal|fish))/i },
+    re: /\b(gelatine?|gélatine|gelatina)\b(?!\s*(halal|beef gelatin from halal|fish))|ゼラチン|젤라틴|明胶|明膠|جيلاتين/i },
   { key: 'pepsin', label: 'Pepsin', reason: 'Pepsin is commonly extracted from pig stomach lining.',
     re: /\bpepsin\b/i },
   { key: 'rennet', label: 'Animal Rennet (unspecified)', reason: 'Non-microbial/non-halal rennet may come from non-halal-slaughtered animals.',
     re: /\b(animal rennet|rennet)\b(?!\s*(microbial|vegetable|halal))/i },
   { key: 'alcohol', label: 'Alcohol / Ethanol', reason: 'Alcohol and ethanol (beyond trace/technical amounts) are Haram as intoxicants.',
-    re: /\b(alcohol|ethanol|ethyl alcohol|grain alcohol|アルコール|알코올|酒精|الكحول|alkohol)\b/i },
+    re: /\b(alcohol|ethanol|ethyl alcohol|grain alcohol|alkohol)\b|アルコール|알코올|酒精|الكحول/i },
   { key: 'wine', label: 'Wine / Cooking Wine', reason: 'Wine and cooking wine are alcoholic and Haram.',
-    re: /\b(wine|cooking wine|shaoxing wine|料理酒|清酒|米酒|와인|요리술|vin de cuisine|wein)\b/i },
+    re: /\b(wine|cooking wine|shaoxing wine|vin de cuisine|wein)\b|料理酒|清酒|米酒|와인|요리술/i },
   { key: 'mirin', label: 'Mirin (rice wine)', reason: 'Mirin is a fermented alcoholic rice seasoning.',
-    re: /\b(mirin|みりん|味醂)\b/i },
+    re: /\bmirin\b|みりん|味醂/i },
   { key: 'sake', label: 'Sake / Rice Wine', reason: 'Sake is an alcoholic rice wine.',
-    re: /\b(sake|清酒|정종)\b/i },
+    re: /\bsake\b|清酒|정종/i },
   { key: 'beer', label: 'Beer / Ale / Lager', reason: 'Beer is an alcoholic beverage.',
-    re: /\b(beer|ale|lager|stout|ビール|맥주|啤酒|bier|bière)\b/i },
+    re: /\b(beer|ale|lager|stout|bier|bière)\b|ビール|맥주|啤酒/i },
   { key: 'rum', label: 'Rum / Liquor / Spirits', reason: 'Distilled spirits are Haram intoxicants.',
     re: /\b(rum|whisk(e)?y|vodka|brandy|liqueur|liquor|schnapps|cognac|gin(?!ger)|tequila|bourbon)\b/i },
   { key: 'vanilla-extract', label: 'Vanilla Extract (alcohol-based)', reason: 'Pure vanilla extract typically contains ~35% ethanol; use imitation/alcohol-free vanilla instead.',
@@ -461,7 +467,7 @@ const HARAM_PATTERNS = [
   { key: 'tallow', label: 'Tallow / Animal Fat (unspecified)', reason: 'Non-halal-slaughtered animal fat/tallow is Haram; source must be verified.',
     re: /\b(tallow|animal fat|animal shortening|suet)\b(?!\s*(halal|vegetable|plant))/i },
   { key: 'carmine', label: 'Carmine / Cochineal / E120', reason: 'Carmine (E120) is derived from crushed insects; considered Haram or at minimum highly Mashbooh by most scholars.',
-    re: /\b(carmine|cochineal|e[\s-]?120|カルミン|연지벌레|胭脂虫)\b/i },
+    re: /\b(carmine|cochineal|e[\s-]?120)\b|カルミン|연지벌레|胭脂虫/i },
   { key: 'l-cysteine', label: 'L-Cysteine (unspecified source)', reason: 'L-Cysteine (E920) can be derived from human hair, feathers, or animal sources.',
     re: /\b(l-cysteine|e[\s-]?920)\b(?!\s*(synthetic|vegetable|plant))/i },
 ];
@@ -472,7 +478,7 @@ const MASHBOOH_PATTERNS = [
   { key: 'e472', label: 'E472 (a-f) Fatty acid esters', reason: 'These emulsifiers may be derived from animal fat of unspecified/non-halal source.',
     re: /\be[\s-]?472[a-f]?\b/i },
   { key: 'e422', label: 'E422 (Glycerol/Glycerin)', reason: 'Glycerin can be sourced from animal fat; source needs verification.',
-    re: /\b(e[\s-]?422|glycerin|glycerol|グリセリン|甘油)\b/i },
+    re: /\b(e[\s-]?422|glycerin|glycerol)\b|グリセリン|甘油/i },
   { key: 'e441', label: 'E441 (Gelatin)', reason: 'E441 is gelatin — source (pork/beef/fish) is often unclear.',
     re: /\be[\s-]?441\b/i },
   { key: 'e542', label: 'E542 (Bone Phosphate)', reason: 'Bone phosphate source animal is often unspecified.',
@@ -502,7 +508,9 @@ const IMAGE_LABEL_RULES = [
   { status: 'haram', label: 'Bacon / Ham / Lard', reason: 'Visual content resembles bacon, ham, or lard — pork derivatives, which are Haram.',
     match: (l) => /\b(bacon|ham|lard|prosciutto|pancetta|salami|pepperoni|chorizo)\b/i.test(l) },
   { status: 'haram', label: 'Pig / Boar / Hog', reason: 'Visual content resembles a pig, hog, or boar — the source animal of pork, which is Haram.',
-    match: (l) => /\b(hog|pig|piglet|boar|swine|sus scrofa|warthog)\b/i.test(l) },
+    // Excludes "guinea pig" (a real, unrelated MobileNet/ImageNet class — a pet rodent, not a
+    // pork source animal) so a correctly-identified guinea pig photo isn't wrongly flagged Haram.
+    match: (l) => /\b(hog|piglet|boar|swine|sus scrofa|warthog)\b/i.test(l) || (/\bpig\b/i.test(l) && !/guinea\s*pig/i.test(l)) },
 
   // Alcohol
   { status: 'haram', label: 'Wine / Wine Bottle', reason: 'Visual content strongly resembles wine or a wine bottle — an alcoholic beverage.',
@@ -1023,6 +1031,29 @@ function analyze(text, imageLabels, matchText, usedCloud, cloudWarning) {
       }
     });
   });
+
+  // Safety net for on-device image recognition: MobileNet is a general 1000-category
+  // object classifier (trained on ImageNet) — it has NO dedicated "pork" class, so it
+  // cannot reliably distinguish pork from other meats. It will often return a generic,
+  // ambiguous label for a meat dish (e.g. "meat loaf", "hot pot", "frying pan", "stew")
+  // instead of naming the meat. Rather than silently calling that HALAL/SAFE — which would
+  // be a false negative for pork the classifier simply failed to name — flag it Mashbooh so
+  // the user knows to verify manually or enable Gemini (a real vision model) for an accurate read.
+  const imageHitFromLabels = haramHits.some(h => h.source === 'image') || mashboohHits.some(h => h.source === 'image');
+  if (scanMode === 'image' && !usedCloud && !imageHitFromLabels && (imageLabels || []).length > 0) {
+    const ambiguousMeat = (imageLabels || []).find(pred =>
+      /meat\s*loaf|meatloaf|hot\s*pot|hotpot|stew|casserole|carbonara|consomm[ée]|frying\s*pan|frypan|skillet|\bwok\b|dutch\s*oven|\bstir[\s-]?fry|\bgrill(ed)?\b|barbecu|\bbbq\b|roast(ed)?|\bplatter\b/i.test(pred.label)
+    );
+    if (ambiguousMeat) {
+      mashboohHits.push({
+        label: 'Unidentified Meat / Cooked Dish',
+        reason: 'The free on-device recognizer (MobileNet) is a general object classifier with no dedicated "pork" category — it cannot reliably tell pork apart from other meats. This photo looks like a meat dish it could not specifically identify. Verify the meat source manually, or add a Gemini API key in Settings for accurate photo-based recognition.',
+        matchedText: `${ambiguousMeat.label} (${Math.round(ambiguousMeat.probability * 100)}% confidence)`,
+        status: 'mashbooh',
+        source: 'image'
+      });
+    }
+  }
 
   let verdict;
   if (haramHits.length > 0) verdict = 'haram';
