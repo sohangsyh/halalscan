@@ -535,12 +535,10 @@ const clearKeyBtn = $('clear-key-btn');
 
 let mediaStream = null;
 let scanMode = 'text'; // 'text' = ingredient list OCR only, 'image' = product photo recognition only
-// Kept in memory only for this page session — never persisted to disk, cleared on reload.
-// NOTE: pre-filled with the key supplied by the app owner as a convenience default.
-// Standard Gemini API keys from Google AI Studio (aistudio.google.com) start with "AIza...".
-// If Gemini calls fail with 400/401 below, generate a proper key there and replace this
-// value, or paste the correct key into Settings in the app instead of editing this file.
-let googleApiKey = 'AQ.Ab8RN6I3_hCwgutuh1jm2snvITfjYiod0N_ECTX4UKBgHlavLw';
+// Kept in memory only for this page session — never persisted to disk, cleared on reload,
+// and never hardcoded here. Enter your Gemini API key via the Settings (gear) icon each
+// time you open the app — nothing is shipped in this file for anyone else to extract.
+let googleApiKey = '';
 
 const MODE_COPY = {
   text: {
