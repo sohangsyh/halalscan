@@ -340,7 +340,7 @@
           <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75 8.69 9.3a2.25 2.25 0 0 1 3.18 0l4.83 4.83M15 12l1.56-1.56a2.25 2.25 0 0 1 3.18 0l1.56 1.56M4.5 4.5h15a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1Z"/><circle cx="9" cy="9" r="1.5"/></svg>
           PRODUCT PHOTO RECOGNITION
         </h2>
-        <p class="text-[11px] text-[#a9c9b8] mb-2">What the on-device image recognizer sees in the photo (supplementary to the ingredient text above).</p>
+        <p id="visual-card-subtitle" class="text-[11px] text-[#a9c9b8] mb-2">What the image recognizer sees in the photo.</p>
         <div id="visual-list" class="flex flex-col divide-y divide-white/10"></div>
       </div>
 
@@ -495,22 +495,36 @@ const MASHBOOH_PATTERNS = [
    OCR of the printed ingredient list, which remains the primary source of
    truth whenever text is present. */
 const IMAGE_LABEL_RULES = [
+  // Pork — the meat/product itself (this was previously missing entirely, which let
+  // labels like "Pork", "Roasted Pork", "Sliced Pork" slip through unflagged).
+  { status: 'haram', label: 'Pork / Pork Product', reason: 'Visual content is identified as pork or a pork-based product, which is Haram.',
+    match: (l) => /\bpork\b/i.test(l) },
+  { status: 'haram', label: 'Bacon / Ham / Lard', reason: 'Visual content resembles bacon, ham, or lard — pork derivatives, which are Haram.',
+    match: (l) => /\b(bacon|ham|lard|prosciutto|pancetta|salami|pepperoni|chorizo)\b/i.test(l) },
+  { status: 'haram', label: 'Pig / Boar / Hog', reason: 'Visual content resembles a pig, hog, or boar — the source animal of pork, which is Haram.',
+    match: (l) => /\b(hog|pig|piglet|boar|swine|sus scrofa|warthog)\b/i.test(l) },
+
+  // Alcohol
   { status: 'haram', label: 'Wine / Wine Bottle', reason: 'Visual content strongly resembles wine or a wine bottle — an alcoholic beverage.',
     match: (l) => /\bwine\b/i.test(l) },
   { status: 'haram', label: 'Beer (bottle/glass)', reason: 'Visual content strongly resembles beer — an alcoholic beverage.',
-    match: (l) => /\bbeer\b/i.test(l) },
-  { status: 'haram', label: 'Cocktail Shaker', reason: 'Cocktail shakers are strongly associated with alcoholic mixed drinks.',
-    match: (l) => /cocktail shaker/i.test(l) },
-  { status: 'haram', label: 'Whiskey / Spirits Jug', reason: 'Visual content resembles a whiskey jug or spirits container — an alcoholic beverage.',
-    match: (l) => /whiskey|whisky/i.test(l) },
-  { status: 'haram', label: 'Pig / Boar / Hog', reason: 'Visual content resembles a pig, hog, or boar — the source animal of pork, which is Haram.',
-    match: (l) => /\b(hog|pig|boar|swine)\b/i.test(l) },
+    match: (l) => /\b(beer|ale|lager|stout)\b/i.test(l) },
+  { status: 'haram', label: 'Cocktail / Mixed Drink', reason: 'Cocktails, cocktail shakers, and mixed drinks are strongly associated with alcohol.',
+    match: (l) => /cocktail|mixed drink|martini|mojito|margarita/i.test(l) },
+  { status: 'haram', label: 'Spirits / Liquor', reason: 'Visual content resembles a distilled spirit — an alcoholic beverage.',
+    match: (l) => /\b(whiskey|whisky|vodka|rum|gin|tequila|brandy|cognac|liqueur|liquor|champagne|prosecco|sake|spirits?)\b/i.test(l) },
+  { status: 'haram', label: 'Alcoholic Beverage (general)', reason: 'Visual content is described as an alcoholic drink or alcohol container.',
+    match: (l) => /\balcohol(ic)?\b/i.test(l) },
+
+  // Mashbooh / verify-source
   { status: 'mashbooh', label: 'Hot Dog / Sausage', reason: 'Hot dogs and sausages are commonly made with pork; verify the meat source and certification.',
-    match: (l) => /hotdog|hot dog|sausage/i.test(l) },
+    match: (l) => /hotdog|hot dog|\bsausage\b/i.test(l) },
   { status: 'mashbooh', label: 'Eggnog', reason: 'Eggnog recipes often include rum or other spirits; verify the recipe.',
     match: (l) => /eggnog/i.test(l) },
   { status: 'mashbooh', label: 'Trifle / Tiramisu-style Dessert', reason: 'These desserts are often prepared with wine, sherry, or liqueur-soaked layers; verify the recipe.',
     match: (l) => /trifle|tiramisu/i.test(l) },
+  { status: 'mashbooh', label: 'Gelatin Dessert / Marshmallow', reason: 'Gelatin-based sweets and marshmallows often use pork or non-halal-slaughtered gelatin; verify the source.',
+    match: (l) => /\b(gelatin|gummy|marshmallow|jello|jelly candy)\b/i.test(l) },
 ];
 
 /* ---------- 2. DOM references ---------- */
@@ -544,6 +558,7 @@ const langDetected = $('lang-detected');
 const rawText = $('raw-text');
 const visualCard = $('visual-card');
 const visualList = $('visual-list');
+const visualCardSubtitle = $('visual-card-subtitle');
 const rawTextDetails = $('raw-text-details');
 const errorBox = $('error-box');
 
@@ -1135,6 +1150,11 @@ function renderResult(verdict, haramHits, mashboohHits, fullText, imageLabels, u
   visualList.innerHTML = '';
   if (imageLabels.length > 0) {
     visualCard.classList.remove('hidden');
+    if (visualCardSubtitle) {
+      visualCardSubtitle.textContent = usedCloud
+        ? 'What Gemini sees in the photo (supplementary to the ingredient text above).'
+        : 'What the on-device image recognizer sees in the photo (supplementary to the ingredient text above).';
+    }
     imageLabels.forEach(pred => {
       const pct = Math.round(pred.probability * 100);
       const chip = document.createElement('div');
