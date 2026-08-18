@@ -379,7 +379,7 @@
     <ol class="text-sm text-[#cfe9dc] space-y-2 list-decimal list-inside">
       <li>Choose "Ingredient List" or "Image" mode, then point your camera or upload a photo.</li>
       <li>In Ingredient List mode, the text is read automatically &mdash; no language selection needed. In Image mode, the photo's visual content is identified instead.</li>
-      <li>By default this runs fully on-device and free (Tesseract.js for text, MobileNet for images). If you add your Bot API credentials in Settings, the app uses your Gemini bot via the Supabase <span class="text-gold font-semibold">bot-api</span> endpoint instead &mdash; far more accurate OCR with automatic language detection and English translation for matching, and Gemini-based photo identification (the closest available equivalent to Google Lens, which has no public API).</li>
+      <li>By default this runs fully on-device and free (Tesseract.js for text, MobileNet for images). If you add a Gemini API key in Settings, the app uses Gemini instead &mdash; far more accurate OCR with automatic language detection and English translation for matching, and Gemini-based photo identification (the closest available equivalent to Google Lens, which has no public API).</li>
       <li>Results are checked against a Halal / Haram / Mashbooh database covering common translations, E-numbers, derivatives, and visual cues.</li>
       <li>The photo on screen tints green, red, or amber with an instant verdict.</li>
     </ol>
@@ -388,7 +388,7 @@
   </div>
 </div>
 
-<!-- Settings modal: Bot API credentials (Supabase bot-api) -->
+<!-- Settings modal: optional Gemini API key -->
 <div id="settings-modal" class="hidden fixed inset-0 z-50 bg-black/65 flex items-end sm:items-center justify-center p-0 sm:p-4">
   <div class="bg-[#0c2e1e] rounded-t-2xl sm:rounded-2xl w-full max-w-md p-5 fade-in max-h-[85vh] overflow-y-auto border-t-2 sm:border-2 border-gold text-[var(--cream)]">
     <div class="flex justify-between items-center mb-3">
@@ -397,33 +397,29 @@
     </div>
 
     <p class="text-xs text-[#cfe9dc] leading-relaxed">
-      By default this app recognizes text and images fully on-device (free, private, but sometimes inaccurate). For much higher accuracy, add your
-      <span class="text-gold font-semibold">Bot API</span> credentials below — the app will then send the photo to your Gemini bot at
-      <span class="text-gold font-semibold">bot-api</span>, which reads the ingredient text (with automatic language detection and English translation for matching) in Ingredient List mode, and identifies the product/dish/objects in the photo &mdash; the closest available equivalent to Google Lens, which has no public API &mdash; in Image mode.
+      By default this app recognizes text and images fully on-device (free, private, but sometimes inaccurate). For much higher accuracy, add your own
+      <span class="text-gold font-semibold">Gemini API key</span> below — the app will then send the photo to
+      <span class="text-gold font-semibold">Gemini</span>, which reads the ingredient text (with automatic language detection and English translation for matching) in Ingredient List mode, and identifies the product/dish/objects in the photo &mdash; the closest available equivalent to Google Lens, which has no public API &mdash; in Image mode.
     </p>
 
     <div class="mt-4">
-      <label class="text-[11px] font-semibold text-gold tracking-wide uppercase">Bot API Key</label>
+      <label class="text-[11px] font-semibold text-gold tracking-wide uppercase">Gemini API Key</label>
       <div class="flex gap-2 mt-1.5">
-        <input id="google-api-key-input" type="password" autocomplete="off" placeholder="gem_sk_..." class="flex-1 min-w-0 bg-black/30 border border-white/15 rounded-lg px-3 py-2 text-sm text-[var(--cream)] placeholder:text-[#6d8a7a] focus:outline-none focus:border-gold/60" />
+        <input id="google-api-key-input" type="password" autocomplete="off" placeholder="AIza..." class="flex-1 min-w-0 bg-black/30 border border-white/15 rounded-lg px-3 py-2 text-sm text-[var(--cream)] placeholder:text-[#6d8a7a] focus:outline-none focus:border-gold/60" />
         <button id="toggle-key-visibility" type="button" class="shrink-0 px-3 rounded-lg border border-white/15 text-xs text-[#cfe9dc] hover:bg-white/10">Show</button>
       </div>
-    </div>
-
-    <div class="mt-3">
-      <label class="text-[11px] font-semibold text-gold tracking-wide uppercase">Authorization token (JWT)</label>
-      <input id="bot-auth-token-input" type="password" autocomplete="off" placeholder="eyJ..." class="mt-1.5 w-full bg-black/30 border border-white/15 rounded-lg px-3 py-2 text-sm text-[var(--cream)] placeholder:text-[#6d8a7a] focus:outline-none focus:border-gold/60" />
       <p id="settings-status" class="text-[11px] text-[#a9c9b8] mt-2">Not set &mdash; using free on-device recognition.</p>
     </div>
 
     <details class="mt-4 text-xs text-[#a9c9b8]">
-      <summary class="cursor-pointer select-none text-gold font-semibold">How these credentials work</summary>
+      <summary class="cursor-pointer select-none text-gold font-semibold">How to get an API key</summary>
       <ol class="list-decimal list-inside space-y-1 mt-2">
-        <li>The request is a POST to <span class="text-[#cfe9dc]">https://lrtlbytsrvzxtgerrkrv.supabase.co/functions/v1/bot-api</span>.</li>
-        <li>Send <span class="text-[#cfe9dc]">Authorization: Bearer &lt;JWT&gt;</span> and <span class="text-[#cfe9dc]">X-API-Key: gem_sk_…</span>.</li>
-        <li>The JSON body is <span class="text-[#cfe9dc]">{"message":"…"}</span>, matching the curl example.</li>
-        <li>The JWT is a signed-in user session token and typically expires in about an hour — paste a fresh one if cloud recognition starts failing with 401.</li>
+        <li>Open <span class="text-[#cfe9dc]">Google AI Studio</span> (aistudio.google.com) and sign in.</li>
+        <li>Go to "Get API key" and create a new key (this also enables the Gemini API on a Google Cloud project for you).</li>
+        <li>Copy the key — it should start with <span class="text-[#cfe9dc]">AIza</span>.</li>
+        <li>Paste the key above. It is used only in this browser, sent directly to Google, and is <span class="text-[#cfe9dc]">not saved anywhere</span> — you'll need to re-enter it if you reload the page.</li>
       </ol>
+      <p class="mt-2">Gemini has a free tier with rate limits (requests per minute/day); heavier use may require enabling billing. Check current limits and pricing at ai.google.dev before relying on this for heavy use.</p>
     </details>
 
     <div class="flex gap-3 mt-5">
@@ -493,9 +489,11 @@ const MASHBOOH_PATTERNS = [
     re: /\b(monoglyceride|diglyceride)\b/i },
 ];
 
-/* Visual/product-photo recognition rules — matched against Gemini or on-device
-   image labels. Ingredient-text HARAM/MASHBOOH patterns are also applied to
-   those labels in analyze(), so names like "Raw Pork Belly" are not missed. */
+/* Visual/product-photo recognition rules — matched against in-browser image
+   classifier labels (MobileNet, trained on ImageNet). This is a best-effort
+   supplementary signal for photos of the product/dish itself, in addition to
+   OCR of the printed ingredient list, which remains the primary source of
+   truth whenever text is present. */
 const IMAGE_LABEL_RULES = [
   { status: 'haram', label: 'Wine / Wine Bottle', reason: 'Visual content strongly resembles wine or a wine bottle — an alcoholic beverage.',
     match: (l) => /\bwine\b/i.test(l) },
@@ -505,8 +503,8 @@ const IMAGE_LABEL_RULES = [
     match: (l) => /cocktail shaker/i.test(l) },
   { status: 'haram', label: 'Whiskey / Spirits Jug', reason: 'Visual content resembles a whiskey jug or spirits container — an alcoholic beverage.',
     match: (l) => /whiskey|whisky/i.test(l) },
-  { status: 'haram', label: 'Pork / Bacon / Ham / Pig', reason: 'Visual content resembles pork or a pig-derived product, which is Haram.',
-    match: (l) => /\b(hog|pig|boar|swine|pork|porcine|bacon|ham(?!ster)|lard|pancetta|prosciutto|guanciale)\b/i.test(l) },
+  { status: 'haram', label: 'Pig / Boar / Hog', reason: 'Visual content resembles a pig, hog, or boar — the source animal of pork, which is Haram.',
+    match: (l) => /\b(hog|pig|boar|swine)\b/i.test(l) },
   { status: 'mashbooh', label: 'Hot Dog / Sausage', reason: 'Hot dogs and sausages are commonly made with pork; verify the meat source and certification.',
     match: (l) => /hotdog|hot dog|sausage/i.test(l) },
   { status: 'mashbooh', label: 'Eggnog', reason: 'Eggnog recipes often include rum or other spirits; verify the recipe.',
@@ -559,7 +557,6 @@ const settingsBtn = $('settings-btn');
 const settingsDot = $('settings-dot');
 const settingsModal = $('settings-modal');
 const googleApiKeyInput = $('google-api-key-input');
-const botAuthTokenInput = $('bot-auth-token-input');
 const toggleKeyVisibilityBtn = $('toggle-key-visibility');
 const settingsStatus = $('settings-status');
 const saveKeyBtn = $('save-key-btn');
@@ -570,16 +567,10 @@ const engineBadgeText = $('engine-badge-text');
 
 let mediaStream = null;
 let scanMode = 'text'; // 'text' = ingredient list OCR only, 'image' = product photo recognition only
-
-const BOT_API_URL = 'https://lrtlbytsrvzxtgerrkrv.supabase.co/functions/v1/bot-api';
-// Bot API credentials from the curl example. The JWT is a user session token and
-// typically expires in about an hour — paste a fresh one in Settings if cloud calls start returning 401.
-let googleApiKey = 'gem_sk_952075f98c3f15961ee74a6bff0559c9575131bed1f1313f';
-let botAuthToken = 'eyJhbGciOiJFUzI1NiIsImtpZCI6IjAxMDc0NGQ5LWVjZGYtNDdhMi04YzBmLWU0MThhYTg4NDAyNyIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL2xydGxieXRzcnZ6eHRnZXJya3J2LnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiI5ODUzNWU2Ni03ZmM3LTRjMjgtYTllYi1kNjY3NDdmYTE2ZDAiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzg3MDM4Mjc3LCJpYXQiOjE3ODcwMzQ2NzcsImVtYWlsIjoiaGVpc29uQGVkdWFpcmhrLmNvbSIsInBob25lIjoiIiwiYXBwX21ldGFkYXRhIjp7InByb3ZpZGVyIjoiZW1haWwiLCJwcm92aWRlcnMiOlsiZW1haWwiXX0sInVzZXJfbWV0YWRhdGEiOnsiZW1haWwiOiJoZWlzb25AZWR1YWlyaGsuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBob25lX3ZlcmlmaWVkIjpmYWxzZSwic3ViIjoiOTg1MzVlNjYtN2ZjNy00YzI4LWE5ZWItZDY2NzQ3ZmExNmQwIn0sInJvbGUiOiJhdXRoZW50aWNhdGVkIiwiYWFsIjoiYWFsMSIsImFtciI6W3sibWV0aG9kIjoicGFzc3dvcmQiLCJ0aW1lc3RhbXAiOjE3ODcwMzQ2Nzd9XSwic2Vzc2lvbl9pZCI6IjNkMmZiOTdlLTFlYmUtNDA4NS04YzFhLTQyNjUzZDM4YmY3OCIsImlzX2Fub255bW91cyI6ZmFsc2V9.yfiKnO7TXA8gYCnuBhQ7PMkAmMTjKWBKImzcHZwbEGlLZKQKVY3GCUTPXllUK8L-QpaC9BXa36oLO6HmoxUjHA';
-
-function hasBotApiCredentials() {
-  return !!googleApiKey && !!botAuthToken;
-}
+// Kept in memory only for this page session — never persisted to disk, cleared on reload,
+// and never hardcoded here. Enter your Gemini API key via the Settings (gear) icon each
+// time you open the app — nothing is shipped in this file for anyone else to extract.
+let googleApiKey = '';
 
 const MODE_COPY = {
   text: {
@@ -606,7 +597,7 @@ function setScanMode(mode) {
 /* Shows which engine will run next (or, right after a scan, which one actually ran —
    pass true/false explicitly to reflect a real result rather than just the current key state). */
 function updateEngineBadge(usedCloud) {
-  const isCloud = typeof usedCloud === 'boolean' ? usedCloud : hasBotApiCredentials();
+  const isCloud = typeof usedCloud === 'boolean' ? usedCloud : !!googleApiKey;
   let label;
   if (isCloud) {
     label = 'Gemini';
@@ -720,11 +711,17 @@ function handleFileUpload(e) {
 /* ---------- 5. Analysis pipeline ----------
    Two engines are supported for each mode:
    - On-device (default, free, private): Tesseract.js for text, MobileNet for images.
-   - Gemini via bot-api (optional, requires Bot API key + JWT in Settings):
-     a POST to the Supabase bot-api endpoint with {"message":"..."} does OCR +
-     language detection + English translation for Ingredient List mode, and
-     photo/object identification for Image mode. */
+   - Gemini (optional, requires the user's own Google AI Studio API key set in Settings):
+     a single multimodal Gemini call does OCR + language detection + English
+     translation for Ingredient List mode, and photo/object identification
+     (the closest available equivalent to Google Lens, which has no public API)
+     for Image mode. */
 const OCR_LANGS = 'eng+ara+jpn+kor+chi_sim+chi_tra+fra+deu+spa+ind';
+
+// Tried in order; the first one that responds successfully is cached and reused for
+// the rest of the session. Covers model-name drift/deprecation without editing code.
+const GEMINI_MODEL_CANDIDATES = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
+let workingGeminiModel = null;
 
 let mobilenetModel = null;
 let mobilenetLoadFailed = false;
@@ -759,42 +756,69 @@ function parseJsonLoose(raw) {
   return JSON.parse(cleaned);
 }
 
-async function callGemini(base64, promptText) {
-  const url = BOT_API_URL;
+async function callGeminiWithModel(model, base64, promptText) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(googleApiKey)}`;
   let res;
   try {
     res = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + botAuthToken,
-        'X-API-Key': googleApiKey,
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        message: promptText,
-        imageBase64: base64,
-        mimeType: 'image/jpeg'
+        contents: [{
+          parts: [
+            { text: promptText },
+            { inline_data: { mime_type: 'image/jpeg', data: base64 } }
+          ]
+        }],
+        generationConfig: { temperature: 0, responseMimeType: 'application/json' }
       })
     });
   } catch (networkErr) {
-    throw new Error(`Network error reaching Bot API (${networkErr.message || networkErr}). Check your internet connection — this is not an API key problem.`);
+    // fetch() itself threw — almost always a network/CORS/DNS failure, not an API error
+    throw new Error(`Network error reaching Gemini (${networkErr.message || networkErr}). Check your internet connection — this is not an API key problem.`);
   }
   if (!res.ok) {
     let detail = '';
     try {
       const errJson = await res.json();
-      detail = errJson.error || (errJson.message) || '';
+      detail = (errJson.error && errJson.error.message) || '';
     } catch (e) {
       detail = await res.text().catch(() => '');
     }
-    const err = new Error(`Bot API HTTP ${res.status}${detail ? ' — ' + String(detail).slice(0, 300) : ''}`);
+    const err = new Error(`Gemini HTTP ${res.status} (model "${model}")${detail ? ' — ' + detail.slice(0, 300) : ''}`);
     err.status = res.status;
     throw err;
   }
   const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  const raw = data.text || '';
+  if (data.promptFeedback && data.promptFeedback.blockReason) {
+    throw new Error('Gemini blocked the request: ' + data.promptFeedback.blockReason);
+  }
+  const candidate = data.candidates && data.candidates[0];
+  const raw = candidate && candidate.content && candidate.content.parts && candidate.content.parts.map(p => p.text || '').join('');
   return parseJsonLoose(raw);
+}
+
+async function callGemini(base64, promptText) {
+  // Once a model is confirmed working this session, use it directly.
+  if (workingGeminiModel) {
+    return callGeminiWithModel(workingGeminiModel, base64, promptText);
+  }
+  let lastErr = null;
+  for (const model of GEMINI_MODEL_CANDIDATES) {
+    try {
+      const result = await callGeminiWithModel(model, base64, promptText);
+      workingGeminiModel = model; // cache for subsequent calls this session
+      return result;
+    } catch (err) {
+      lastErr = err;
+      // 404 usually means "model not found/not available to this key" — try the next
+      // candidate. Any other status (401/403/400/network) means the key/request itself
+      // is the problem, so retrying with a different model name won't help — stop here.
+      if (err.status === 404) continue;
+      throw err;
+    }
+  }
+  throw lastErr || new Error('No Gemini model responded');
 }
 
 /* Ingredient List mode: OCR + language detection + English translation in one call. */
@@ -844,7 +868,7 @@ async function runOCR(imageSource) {
   let imageLabels = [];
   let usedCloud = false;
   let cloudWarning = '';
-  const useCloud = hasBotApiCredentials();
+  const useCloud = !!googleApiKey;
 
   if (scanMode === 'text') {
     if (useCloud) {
@@ -968,46 +992,19 @@ function analyze(text, imageLabels, matchText, usedCloud, cloudWarning) {
     if (m) mashboohHits.push({ label: p.label, reason: p.reason, matchedText: m[0], status: 'mashbooh', source: 'text' });
   });
 
-  // Cross-check visual labels against ingredient patterns first (so "Pork" /
-  // "Raw Pork Belly" / "Bacon Slab" flag as Haram), then visual-only rules.
+  // Cross-check visual recognition labels against the same knowledge base
   (imageLabels || []).forEach(pred => {
-    const labelText = String(pred.label || '');
-    const confidence = `${labelText} (${Math.round((pred.probability || 0) * 100)}% confidence)`;
-    let matched = false;
-
-    HARAM_PATTERNS.forEach(p => {
-      if (matched) return;
-      const m = labelText.match(p.re);
-      if (m) {
-        haramHits.push({ label: p.label, reason: p.reason, matchedText: confidence, status: 'haram', source: 'image' });
-        matched = true;
-      }
-    });
-    if (matched) return;
-
-    MASHBOOH_PATTERNS.forEach(p => {
-      if (matched) return;
-      const m = labelText.match(p.re);
-      if (m) {
-        mashboohHits.push({ label: p.label, reason: p.reason, matchedText: confidence, status: 'mashbooh', source: 'image' });
-        matched = true;
-      }
-    });
-    if (matched) return;
-
     IMAGE_LABEL_RULES.forEach(rule => {
-      if (matched) return;
-      if (rule.match(labelText)) {
+      if (rule.match(pred.label)) {
         const hit = {
           label: rule.label,
           reason: rule.reason,
-          matchedText: confidence,
+          matchedText: `${pred.label} (${Math.round(pred.probability * 100)}% confidence)`,
           status: rule.status,
           source: 'image'
         };
         if (rule.status === 'haram') haramHits.push(hit);
         else mashboohHits.push(hit);
-        matched = true;
       }
     });
   });
@@ -1175,10 +1172,10 @@ function fullReset() {
   updateEngineBadge(); // back to reflecting the intended engine (key present or not) for the next scan
 }
 
-/* ---------- 8b. Settings (Bot API credentials) ---------- */
+/* ---------- 8b. Settings (Google Cloud API key) ---------- */
 function refreshSettingsStatus() {
-  if (hasBotApiCredentials()) {
-    settingsStatus.textContent = 'Gemini recognition via bot-api is active for this session.';
+  if (googleApiKey) {
+    settingsStatus.textContent = 'Gemini recognition is active for this session.';
     settingsDot.classList.remove('hidden');
   } else {
     settingsStatus.textContent = 'Not set — using free on-device recognition.';
@@ -1188,7 +1185,6 @@ function refreshSettingsStatus() {
 
 function openSettingsModal() {
   googleApiKeyInput.value = googleApiKey;
-  botAuthTokenInput.value = botAuthToken;
   refreshSettingsStatus();
   settingsModal.classList.remove('hidden');
 }
@@ -1226,7 +1222,6 @@ toggleKeyVisibilityBtn.addEventListener('click', () => {
 
 saveKeyBtn.addEventListener('click', () => {
   googleApiKey = googleApiKeyInput.value.trim();
-  botAuthToken = botAuthTokenInput.value.trim();
   refreshSettingsStatus();
   updateEngineBadge();
   closeSettingsModal();
@@ -1234,9 +1229,7 @@ saveKeyBtn.addEventListener('click', () => {
 
 clearKeyBtn.addEventListener('click', () => {
   googleApiKey = '';
-  botAuthToken = '';
   googleApiKeyInput.value = '';
-  botAuthTokenInput.value = '';
   refreshSettingsStatus();
   updateEngineBadge();
 });
