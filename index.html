@@ -443,7 +443,7 @@
 // alternatives, and lists non-Latin terms as plain (unanchored) alternatives outside that group.
 const HARAM_PATTERNS = [
   { key: 'pork', label: 'Pork / Pork derivative', reason: 'Pork and its derivatives are strictly Haram.',
-    re: /\b(pork|porcine|swine|lard|bacon|ham(?!ster)|pancetta|prosciutto|schweinefleisch|schwein|porc|viande de porc)\b|豚肉|ぶたにく|豚|돼지고기|돼지|猪肉|豬肉|猪油|豬油|جيلاتين\s*خنزير|لحم\s*خنزير|خنزير/i },
+    re: /\b(pork|porcine|swine|lard|bacon|ham(?!ster)|pancetta|prosciutto|schweinefleisch|schwein|porc|viande de porc|speck|cerdo|puerco|tocino|jam[oó]n|manteca de cerdo|babi)\b|豚肉|ぶたにく|豚|돼지고기|돼지|베이컨|햄|猪肉|豬肉|猪油|豬油|جيلاتين\s*خنزير|لحم\s*خنزير|خنزير/i },
   { key: 'gelatin', label: 'Gelatin/Gelatine (unspecified source)', reason: 'Gelatin is often derived from pork or non-halal-slaughtered animals unless labeled "halal", "beef", or "fish" gelatin.',
     re: /\b(gelatine?|gélatine|gelatina)\b(?!\s*(halal|beef gelatin from halal|fish))|ゼラチン|젤라틴|明胶|明膠|جيلاتين/i },
   { key: 'pepsin', label: 'Pepsin', reason: 'Pepsin is commonly extracted from pig stomach lining.',
@@ -451,17 +451,23 @@ const HARAM_PATTERNS = [
   { key: 'rennet', label: 'Animal Rennet (unspecified)', reason: 'Non-microbial/non-halal rennet may come from non-halal-slaughtered animals.',
     re: /\b(animal rennet|rennet)\b(?!\s*(microbial|vegetable|halal))/i },
   { key: 'alcohol', label: 'Alcohol / Ethanol', reason: 'Alcohol and ethanol (beyond trace/technical amounts) are Haram as intoxicants.',
-    re: /\b(alcohol|ethanol|ethyl alcohol|grain alcohol|alkohol)\b|アルコール|알코올|酒精|الكحول/i },
+    re: /\b(alcohol|ethanol|ethyl alcohol|grain alcohol|alkohol|alcool)\b|アルコール|알코올|酒精|الكحول/i },
   { key: 'wine', label: 'Wine / Cooking Wine', reason: 'Wine and cooking wine are alcoholic and Haram.',
-    re: /\b(wine|cooking wine|shaoxing wine|vin de cuisine|wein)\b|料理酒|清酒|米酒|와인|요리술/i },
+    re: /\b(wine|cooking wine|shaoxing wine|vin de cuisine|wein|\bvin\b|vino)\b|料理酒|清酒|米酒|와인|요리술|نبيذ|(?<![؀-ۿ])خمر(?![؀-ۿ])/i },
   { key: 'mirin', label: 'Mirin (rice wine)', reason: 'Mirin is a fermented alcoholic rice seasoning.',
     re: /\bmirin\b|みりん|味醂/i },
   { key: 'sake', label: 'Sake / Rice Wine', reason: 'Sake is an alcoholic rice wine.',
     re: /\bsake\b|清酒|정종/i },
   { key: 'beer', label: 'Beer / Ale / Lager', reason: 'Beer is an alcoholic beverage.',
-    re: /\b(beer|ale|lager|stout|bier|bière)\b|ビール|맥주|啤酒/i },
-  { key: 'rum', label: 'Rum / Liquor / Spirits', reason: 'Distilled spirits are Haram intoxicants.',
-    re: /\b(rum|whisk(e)?y|vodka|brandy|liqueur|liquor|schnapps|cognac|gin(?!ger)|tequila|bourbon)\b/i },
+    re: /\b(beer|ale|lager|stout|bier|bière|cerveza|bir)\b|ビール|맥주|啤酒|بيرة/i },
+  { key: 'rum', label: 'Rum / Liquor / Spirits', reason: 'Distilled spirits are Haram intoxicants — flagged by name even when the label doesn\'t say "alcohol" or "wine".',
+    re: /\b(rum|whisk(e)?y|vodka|brandy|liqueur|liquor|schnapps|cognac|gin(?!ger)|tequila|bourbon|arak|tuak|absinthe|vermouth|grappa|ouzo|mezcal|pisco|moonshine|calvados|kirsch|arrack|baijiu|shochu)\b/i },
+  { key: 'champagne', label: 'Champagne / Sparkling Wine', reason: 'Champagne and other sparkling wines are alcoholic and Haram.',
+    re: /\b(champagne|prosecco|cava|sparkling wine)\b/i },
+  { key: 'sherry-port', label: 'Sherry / Port / Fortified Wine', reason: 'Sherry, port, and other fortified wines are alcoholic and Haram.',
+    re: /\b(sherry|port wine|fortified wine|marsala wine|madeira wine)\b/i },
+  { key: 'soju', label: 'Soju (Korean spirit)', reason: 'Soju is a distilled Korean alcoholic spirit.',
+    re: /\bsoju\b|소주/i },
   { key: 'vanilla-extract', label: 'Vanilla Extract (alcohol-based)', reason: 'Pure vanilla extract typically contains ~35% ethanol; use imitation/alcohol-free vanilla instead.',
     re: /\b(vanilla extract|pure vanilla)\b/i },
   { key: 'tallow', label: 'Tallow / Animal Fat (unspecified)', reason: 'Non-halal-slaughtered animal fat/tallow is Haram; source must be verified.',
@@ -519,8 +525,8 @@ const IMAGE_LABEL_RULES = [
     match: (l) => /\b(beer|ale|lager|stout)\b/i.test(l) },
   { status: 'haram', label: 'Cocktail / Mixed Drink', reason: 'Cocktails, cocktail shakers, and mixed drinks are strongly associated with alcohol.',
     match: (l) => /cocktail|mixed drink|martini|mojito|margarita/i.test(l) },
-  { status: 'haram', label: 'Spirits / Liquor', reason: 'Visual content resembles a distilled spirit — an alcoholic beverage.',
-    match: (l) => /\b(whiskey|whisky|vodka|rum|gin|tequila|brandy|cognac|liqueur|liquor|champagne|prosecco|sake|spirits?)\b/i.test(l) },
+  { status: 'haram', label: 'Spirits / Liquor', reason: 'Visual content resembles a distilled spirit or fortified/sparkling wine — an alcoholic beverage — identified by name even without a generic "alcohol" or "wine" label.',
+    match: (l) => /\b(whiskey|whisky|vodka|rum|gin|tequila|brandy|cognac|liqueur|liquor|champagne|prosecco|cava|sake|spirits?|absinthe|vermouth|grappa|ouzo|mezcal|pisco|moonshine|calvados|kirsch|arrack|arak|tuak|baijiu|shochu|soju|sherry|port wine|schnapps|bourbon)\b/i.test(l) },
   { status: 'haram', label: 'Alcoholic Beverage (general)', reason: 'Visual content is described as an alcoholic drink or alcohol container.',
     match: (l) => /\balcohol(ic)?\b/i.test(l) },
 
@@ -1041,8 +1047,14 @@ function analyze(text, imageLabels, matchText, usedCloud, cloudWarning) {
   // the user knows to verify manually or enable Gemini (a real vision model) for an accurate read.
   const imageHitFromLabels = haramHits.some(h => h.source === 'image') || mashboohHits.some(h => h.source === 'image');
   if (scanMode === 'image' && !usedCloud && !imageHitFromLabels && (imageLabels || []).length > 0) {
+    // Broad net of real MobileNet/ImageNet-1000 class names (and generic English words) that
+    // tend to come back for meat dishes — ImageNet has NO "steak", "sausage-on-a-plate", or
+    // generic "meat" class, so a meat photo usually surfaces one of these approximate/adjacent
+    // labels instead of naming the meat. Per explicit product requirement: if the on-device
+    // engine cannot confirm what kind of meat (or non-meat) something is, never render "safe" —
+    // caution/verify-manually instead.
     const ambiguousMeat = (imageLabels || []).find(pred =>
-      /meat\s*loaf|meatloaf|hot\s*pot|hotpot|stew|casserole|carbonara|consomm[ée]|frying\s*pan|frypan|skillet|\bwok\b|dutch\s*oven|\bstir[\s-]?fry|\bgrill(ed)?\b|barbecu|\bbbq\b|roast(ed)?|\bplatter\b/i.test(pred.label)
+      /\bmeat\b|meat\s*loaf|meatloaf|hot\s*pot|hotpot|stew|casserole|carbonara|consomm[ée]|frying\s*pan|frypan|skillet|\bwok\b|dutch\s*oven|c(a|au)ldron|crock\s*pot|\bstir[\s-]?fry|\bgrill(ed)?\b|barbecu|\bbbq\b|roast(ed)?|\bplatter\b|cheeseburger|hot\s*dog|hotdog|pot\s*pie|potpie|burrito|\bpizza\b|\btaco\b|\bkebab\b|\bshawarma\b|\bjerky\b|\bcutlet\b|\bfillet\b|\bstir-?fried\b/i.test(pred.label)
     );
     if (ambiguousMeat) {
       mashboohHits.push({
