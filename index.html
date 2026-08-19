@@ -442,8 +442,18 @@
 // exact the OCR text is. Every pattern below keeps `\b...\b` only around the Latin-script
 // alternatives, and lists non-Latin terms as plain (unanchored) alternatives outside that group.
 const HARAM_PATTERNS = [
-  { key: 'pork', label: 'Pork / Pork derivative', reason: 'Pork and its derivatives are strictly Haram.',
-    re: /\b(pork|porcine|swine|lard|bacon|ham(?!ster)|pancetta|prosciutto|schweinefleisch|schwein|porc|viande de porc|speck|cerdo|puerco|tocino|jam[oó]n|manteca de cerdo|babi)\b|豚肉|ぶたにく|豚|돼지고기|돼지|베이컨|햄|猪肉|豬肉|猪油|豬油|جيلاتين\s*خنزير|لحم\s*خنزير|خنزير/i },
+  { key: 'pork', label: 'Pork / Pork derivative', reason: 'Pork and its derivatives — including every specific cut (belly, collar, ribs, trotters, offal, etc.) — are strictly Haram.',
+    // 豬/猪 (the bare "pig" character, Traditional/Simplified) is matched on its own — not just
+    // "豬肉"/"猪肉" — because it appears as the first character of essentially every Cantonese/
+    // Chinese pork-cut term: 豬扒 (chop), 豬柳 (fillet), 豬腩肉 (belly), 豬頸肉 (neck), 豬肋骨 (ribs),
+    // 豬踭 (knuckle), 豬骨 (bone), 豬手/豬腳 (trotters), 豬舌 (tongue), 豬耳 (ear), 豬尾 (tail),
+    // 豬橫脷 (pancreas), 豬軟骨 (cartilage), 豬腦 (brain), 豬心 (heart), 豬肺 (lung), 豬肝 (liver),
+    // 豬腰 (kidney), 豬肚 (stomach), 豬小腸/豬大腸 (intestine), 豬血/豬紅 (blood), 免治豬肉 (minced
+    // pork), and any other 豬-prefixed cut not explicitly listed here — matching the character
+    // itself covers all of them (and any future ones) instead of needing every compound spelled out.
+    re: /\b(pork|porcine|swine|lard|bacon|ham(?!ster)|pancetta|prosciutto|schweinefleisch|schwein|porc|viande de porc|speck|cerdo|puerco|tocino|jam[oó]n|manteca de cerdo|babi)\b|豚肉|ぶたにく|豚|돼지고기|돼지|베이컨|햄|豬|猪|جيلاتين\s*خنزير|لحم\s*خنزير|خنزير/i },
+  { key: 'pork-cut-no-prefix', label: 'Pork Cut (Cantonese, no 豬 prefix)', reason: 'A specific pork cut name that does not start with the 豬 (pig) character — confirmed against Hong Kong FEHD\'s official raw-pork-cuts market guide, which lists these as pork-specific terms.',
+    re: /梅頭|梅头|排骨|腩排|瘦肉/i },
   { key: 'gelatin', label: 'Gelatin/Gelatine (unspecified source)', reason: 'Gelatin is often derived from pork or non-halal-slaughtered animals unless labeled "halal", "beef", or "fish" gelatin.',
     re: /\b(gelatine?|gélatine|gelatina)\b(?!\s*(halal|beef gelatin from halal|fish))|ゼラチン|젤라틴|明胶|明膠|جيلاتين/i },
   { key: 'pepsin', label: 'Pepsin', reason: 'Pepsin is commonly extracted from pig stomach lining.',
