@@ -745,7 +745,23 @@ function handleFileUpload(e) {
      translation for Ingredient List mode, and photo/object identification
      (the closest available equivalent to Google Lens, which has no public API)
      for Image mode. */
-const OCR_LANGS = 'eng+ara+jpn+kor+chi_sim+chi_tra+fra+deu+spa+ind';
+// IMPORTANT: Tesseract.js accuracy — especially for CJK scripts — collapses hard when too many
+// unrelated scripts are loaded into a single recognize() call. A single pass with all 10
+// languages at once ('eng+ara+jpn+kor+chi_sim+chi_tra+fra+deu+spa+ind') forces the OCR engine to
+// disambiguate between Latin letters, Arabic script, and three different CJK systems for every
+// glyph simultaneously, which is a well-documented Tesseract weak point and was very likely why
+// text like 豬肉 (pork, Traditional Chinese) wasn't being read correctly at all — the recognizer
+// itself was misreading/dropping it, before the matching rules ever saw the text.
+// Fix: run OCR in several smaller passes, one per compatible script family, and combine the
+// results. Each pass only has to disambiguate within one script family, which is dramatically
+// more accurate than one 10-language pass — at the cost of taking longer per scan.
+const OCR_LANG_GROUPS = [
+  'eng+fra+deu+spa+ind', // Latin-alphabet languages combine well together
+  'chi_sim+chi_tra',     // Simplified + Traditional Chinese share the same Han glyph system
+  'jpn',                 // Japanese kept separate — mixing with Chinese confuses shared kanji glyphs
+  'kor',                 // Korean Hangul — a distinct script, best run alone
+  'ara',                 // Arabic script — a distinct script, best run alone
+];
 
 // Tried in order; the first one that responds successfully is cached and reused for
 // the rest of the session. Covers model-name drift/deprecation without editing code.
@@ -917,20 +933,33 @@ async function runOCR(imageSource) {
     }
     if (!usedCloud) {
       processingText.textContent = 'Loading OCR engine…';
-      try {
-        const result = await Tesseract.recognize(imageSource, OCR_LANGS, {
-          logger: (m) => {
-            if (m.status) processingText.textContent = describeStatus(m.status);
-            if (typeof m.progress === 'number') {
-              processingBar.style.width = Math.max(5, Math.round(m.progress * 100)) + '%';
+      // Run one OCR pass per script family (see OCR_LANG_GROUPS above) instead of a single pass
+      // with all 10 languages loaded at once — combining unrelated scripts (Latin + Arabic +
+      // 3 CJK systems) in one pass badly degrades Tesseract's accuracy. Passes are combined so a
+      // match found by ANY pass counts, without needing to guess the right language up front.
+      const textParts = [];
+      for (let i = 0; i < OCR_LANG_GROUPS.length; i++) {
+        const group = OCR_LANG_GROUPS[i];
+        const passBase = Math.round((i / OCR_LANG_GROUPS.length) * 90);
+        const passSpan = 90 / OCR_LANG_GROUPS.length;
+        try {
+          const result = await Tesseract.recognize(imageSource, group, {
+            logger: (m) => {
+              processingText.textContent = `Reading text (${i + 1}/${OCR_LANG_GROUPS.length})… ${describeStatus(m.status)}`;
+              if (typeof m.progress === 'number') {
+                processingBar.style.width = Math.max(5, Math.round(passBase + m.progress * passSpan)) + '%';
+              }
             }
-          }
-        });
-        text = (result.data && result.data.text) ? result.data.text.trim() : '';
-        matchText = text;
-      } catch (err) {
-        console.error('OCR failed:', err);
+          });
+          const chunk = (result.data && result.data.text) ? result.data.text.trim() : '';
+          if (chunk) textParts.push(chunk);
+        } catch (err) {
+          console.error(`OCR pass failed (${group}):`, err);
+        }
       }
+      processingBar.style.width = '95%';
+      text = textParts.join('\n').trim();
+      matchText = text;
     }
   } else {
     if (useCloud) {
@@ -968,7 +997,13 @@ async function runOCR(imageSource) {
   modeTextBtn.disabled = false;
   modeImageBtn.disabled = false;
 
-  if (scanMode === 'text' && (!text || text.length < 3)) {
+  // A minimum length of 3 is fine for Latin-script OCR noise-filtering, but many CJK ingredient
+  // terms are meaningful at just 2 characters (e.g. 豬肉 "pork" is `.length === 2` in JS) — an
+  // unconditional length<3 cutoff was discarding correctly-read short CJK/Arabic/Korean/Japanese
+  // results as "no text found" before they ever reached the matching rules. Treat any text that
+  // contains at least one CJK/Arabic/Hangul/Kana character as meaningful regardless of length.
+  const hasNonLatinScript = /[一-鿿㐀-䶿぀-ヿ가-힯؀-ۿ]/.test(text);
+  if (scanMode === 'text' && (!text || (text.length < 3 && !hasNonLatinScript))) {
     showError(cloudWarning ? (cloudWarning + ' No readable text was found either way — try better lighting or move closer.')
       : 'No readable text was found. Try better lighting, hold the camera steady, or move closer to the ingredient list. You can also switch to "Image" mode above to recognize the product photo instead.');
     resetToIdle();
