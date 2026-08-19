@@ -76,16 +76,50 @@
     box-shadow: inset 0 0 60px 10px rgba(0,0,0,0.55);
   }
 
-  /* Mode switch pill, floating at the top-left of the camera */
-  .mode-switch{
-    position:absolute; top:12px; left:12px;
+  /* Big, obvious mode-choice buttons shown as a full overlay until a mode is picked — replaces
+     a smaller/less obvious pill-only picker per user feedback that the pill wasn't obvious enough. */
+  .mode-choice-btn{
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+    padding: 20px 10px;
+    border-radius: 16px;
+    background: rgba(3,17,10,0.75);
+    border: 1.5px solid rgba(212,175,55,0.55);
+    color: #f9e6a8;
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    text-align:center;
+    transition: transform .15s ease, background .15s ease, border-color .15s ease;
+  }
+  .mode-choice-btn:active{
+    transform: scale(0.96);
+    background-image: linear-gradient(135deg, var(--gold-1), var(--gold-2) 55%, var(--gold-3));
+    color: #1a2e22;
+    border-color: transparent;
+  }
+
+  /* Compact mode switch — shown once a mode is chosen, so it can still be changed.
+     display is NOT set on the plain #mode-switch-wrap rule — as an ID selector it would beat
+     Tailwind's .hidden class on specificity and keep the element clickable even while "hidden"
+     (a real bug caught in testing). The :not(.hidden) rule below sets display:flex only when the
+     hidden class is absent, so toggling .hidden via JS always wins either way. */
+  #mode-switch-wrap{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
     z-index:40;
+    flex-direction:column; align-items:center; gap:8px;
+  }
+  #mode-switch-wrap:not(.hidden){
+    display:flex;
+  }
+  .mode-switch{
     display:flex; gap:2px;
-    background: rgba(3,17,10,0.72);
+    background: rgba(3,17,10,0.82);
     border: 1px solid rgba(212,175,55,0.45);
     border-radius: 9999px;
-    padding: 3px;
+    padding: 4px;
     backdrop-filter: blur(2px);
+    box-shadow: 0 4px 18px rgba(0,0,0,0.45);
+    position: relative;
   }
   .mode-switch button{
     position:relative; z-index:1;
@@ -231,11 +265,28 @@
     <!-- Camera / capture card -->
     <div id="capture-card" class="camera-card relative aspect-[3/4] flex items-center justify-center">
 
-      <!-- Mode switch: Ingredient List vs Image recognition -->
-      <div class="mode-switch">
-        <div id="mode-highlight" class="mode-highlight"></div>
-        <button id="mode-text-btn" type="button" class="active">Ingredient List</button>
-        <button id="mode-image-btn" type="button">Image</button>
+      <!-- Mode choice screen: big, obvious first step — must be picked before scanning -->
+      <div id="mode-choice-screen" class="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 px-6 bg-black/55 backdrop-blur-[1px]">
+        <p class="text-sm font-display font-bold text-gold tracking-wide text-center">What would you like to scan?</p>
+        <div class="grid grid-cols-2 gap-3 w-full max-w-xs">
+          <button id="mode-text-choice-btn" type="button" class="mode-choice-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M8 6h11M8 12h11M8 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>
+            <span>Ingredient List</span>
+          </button>
+          <button id="mode-image-choice-btn" type="button" class="mode-choice-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 0 1 2-2h.93a2 2 0 0 0 1.664-.89l.812-1.22A2 2 0 0 1 10.07 4h3.86a2 2 0 0 1 1.664.89l.812 1.22A2 2 0 0 0 18.07 7H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/><circle cx="12" cy="13" r="3.5"/></svg>
+            <span>Image</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Compact mode switch — appears once a mode is chosen, so it can still be changed -->
+      <div id="mode-switch-wrap" class="hidden">
+        <div class="mode-switch">
+          <div id="mode-highlight" class="mode-highlight hidden"></div>
+          <button id="mode-text-btn" type="button">Ingredient List</button>
+          <button id="mode-image-btn" type="button">Image</button>
+        </div>
       </div>
 
       <!-- Active recognition engine indicator -->
@@ -249,12 +300,12 @@
       <div class="frame-vignette"></div>
 
       <!-- Idle state -->
-      <div id="camera-idle" class="text-center text-[#cfe9dc] px-6 flex flex-col items-center gap-3 relative z-10">
+      <div id="camera-idle" class="text-center text-[#cfe9dc] px-6 flex flex-col items-center gap-3 relative z-10 mt-28">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 text-gold opacity-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.3">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 0 1 2-2h.93a2 2 0 0 0 1.664-.89l.812-1.22A2 2 0 0 1 10.07 4h3.86a2 2 0 0 1 1.664.89l.812 1.22A2 2 0 0 0 18.07 7H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/>
           <circle cx="12" cy="13" r="3.5"/>
         </svg>
-        <p id="camera-idle-text" class="text-sm font-medium font-serif-soft">Start the camera or upload a photo of the ingredient list</p>
+        <p id="camera-idle-text" class="text-sm font-medium font-serif-soft">Choose "Ingredient List" or "Image" above to begin</p>
       </div>
 
       <!-- Scan overlay frame, shown only when camera active -->
@@ -287,9 +338,9 @@
 
     <!-- Action buttons -->
     <div class="flex flex-col gap-3">
-      <button id="start-camera-btn" class="w-full btn-gold active:scale-[0.98] transition font-display font-bold rounded-xl py-3 flex items-center justify-center gap-2 text-sm tracking-wide">
+      <button id="start-camera-btn" disabled class="w-full btn-gold active:scale-[0.98] transition font-display font-bold rounded-xl py-3 flex items-center justify-center gap-2 text-sm tracking-wide opacity-50 cursor-not-allowed">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 0 1 2-2h.93a2 2 0 0 0 1.664-.89l.812-1.22A2 2 0 0 1 10.07 4h3.86a2 2 0 0 1 1.664.89l.812 1.22A2 2 0 0 0 18.07 7H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/><circle cx="12" cy="13" r="3.5"/></svg>
-        Start Camera
+        Take Photo
       </button>
 
       <button id="capture-btn" disabled class="hidden w-full btn-green active:scale-[0.98] transition font-display font-bold rounded-xl py-3 flex items-center justify-center gap-2 text-sm tracking-wide border border-gold/40">
@@ -297,7 +348,7 @@
         Capture &amp; Scan
       </button>
 
-      <button id="upload-btn" class="w-full btn-outline border border-gold/40 active:scale-[0.98] transition text-gold font-semibold rounded-xl py-3 text-sm flex items-center justify-center gap-2">
+      <button id="upload-btn" disabled class="w-full btn-outline border border-gold/40 active:scale-[0.98] transition text-gold font-semibold rounded-xl py-3 text-sm flex items-center justify-center gap-2 opacity-50 cursor-not-allowed">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-1M7 9l5-5 5 5M12 4v13"/></svg>
         Upload Image
       </button>
@@ -618,8 +669,16 @@ const clearKeyBtn = $('clear-key-btn');
 const engineBadge = $('engine-badge');
 const engineBadgeText = $('engine-badge-text');
 
+const modeChoiceScreen = $('mode-choice-screen');
+const modeSwitchWrap = $('mode-switch-wrap');
+const modeTextChoiceBtn = $('mode-text-choice-btn');
+const modeImageChoiceBtn = $('mode-image-choice-btn');
+
 let mediaStream = null;
-let scanMode = 'text'; // 'text' = ingredient list OCR only, 'image' = product photo recognition only
+// No default — the user must explicitly pick "Ingredient List" or "Image" via the mode switch
+// (centered on the camera) before Start Camera / Upload Image become usable. 'text' = ingredient
+// list OCR only, 'image' = product photo recognition only.
+let scanMode = null;
 // Kept in memory only for this page session — never persisted to disk, cleared on reload,
 // and never hardcoded here. Enter your Gemini API key via the Settings (gear) icon each
 // time you open the app — nothing is shipped in this file for anyone else to extract.
@@ -627,29 +686,51 @@ let googleApiKey = '';
 
 const MODE_COPY = {
   text: {
-    idle: 'Start the camera or upload a photo of the ingredient list',
+    idle: 'Take a photo or upload one of the ingredient list',
     guide: 'Align ingredient list inside the frame'
   },
   image: {
-    idle: 'Start the camera or upload a photo of the product',
+    idle: 'Take a photo or upload one of the product',
     guide: 'Center the product or dish inside the frame'
   }
 };
 
 function setScanMode(mode) {
+  const firstSelection = scanMode === null;
   scanMode = mode;
   const isText = mode === 'text';
   modeTextBtn.classList.toggle('active', isText);
   modeImageBtn.classList.toggle('active', !isText);
-  moveModeHighlight();
+  modeHighlight.classList.remove('hidden');
   cameraIdleText.textContent = MODE_COPY[mode].idle;
   scanGuideText.textContent = MODE_COPY[mode].guide;
   updateEngineBadge();
+  if (firstSelection) {
+    // Unlock Start Camera / Upload Image now that a mode has been chosen, swap the big
+    // choice screen out for the compact pill (which stays available to change modes later).
+    modeChoiceScreen.classList.add('hidden');
+    modeSwitchWrap.classList.remove('hidden');
+    startCameraBtn.disabled = false;
+    startCameraBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    uploadBtn.disabled = false;
+    uploadBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+  }
+  // Measure the target button's width/position AFTER the pill has been unhidden above —
+  // measuring while display:none (i.e. before the unhide on first selection) reads offsetWidth
+  // as 0, leaving the gold highlight collapsed and the "active" button's text (dark green,
+  // meant to sit on the gold highlight) invisible against the dark camera background. A
+  // double rAF ensures the browser has completed layout for the just-unhidden element first.
+  requestAnimationFrame(() => requestAnimationFrame(moveModeHighlight));
 }
 
 /* Shows which engine will run next (or, right after a scan, which one actually ran —
    pass true/false explicitly to reflect a real result rather than just the current key state). */
 function updateEngineBadge(usedCloud) {
+  if (scanMode === null) {
+    engineBadgeText.textContent = '—';
+    engineBadge.classList.add('engine-dot-device');
+    return;
+  }
   const isCloud = typeof usedCloud === 'boolean' ? usedCloud : !!googleApiKey;
   let label;
   if (isCloud) {
@@ -662,6 +743,7 @@ function updateEngineBadge(usedCloud) {
 }
 
 function moveModeHighlight() {
+  if (scanMode === null) return; // nothing chosen yet — highlight stays hidden
   const target = scanMode === 'text' ? modeTextBtn : modeImageBtn;
   modeHighlight.style.width = target.offsetWidth + 'px';
   modeHighlight.style.left = target.offsetLeft + 'px';
@@ -1356,6 +1438,8 @@ $('info-modal').addEventListener('click', (e) => { if (e.target.id === 'info-mod
 
 modeTextBtn.addEventListener('click', () => setScanMode('text'));
 modeImageBtn.addEventListener('click', () => setScanMode('image'));
+modeTextChoiceBtn.addEventListener('click', () => setScanMode('text'));
+modeImageChoiceBtn.addEventListener('click', () => setScanMode('image'));
 window.addEventListener('resize', moveModeHighlight);
 
 settingsBtn.addEventListener('click', openSettingsModal);
@@ -1383,7 +1467,9 @@ clearKeyBtn.addEventListener('click', () => {
 });
 
 window.addEventListener('DOMContentLoaded', () => {
-  setScanMode('text');
+  // No setScanMode() call here — the mode switch starts unselected, and Start Camera / Upload
+  // Image stay disabled (see the `disabled` attribute in the HTML) until the user picks a mode.
+  updateEngineBadge();
   refreshSettingsStatus();
 
   const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
