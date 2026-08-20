@@ -505,6 +505,12 @@ const HARAM_PATTERNS = [
     re: /\b(pork|porcine|swine|lard|bacon|ham(?!ster)|pancetta|prosciutto|schweinefleisch|schwein|porc|viande de porc|speck|cerdo|puerco|tocino|jam[oó]n|manteca de cerdo|babi)\b|豚肉|ぶたにく|豚|돼지고기|돼지|베이컨|햄|豬|猪|جيلاتين\s*خنزير|لحم\s*خنزير|خنزير/i },
   { key: 'pork-cut-no-prefix', label: 'Pork Cut (Cantonese, no 豬 prefix)', reason: 'A specific pork cut name that does not start with the 豬 (pig) character — confirmed against Hong Kong FEHD\'s official raw-pork-cuts market guide, which lists these as pork-specific terms.',
     re: /梅頭|梅头|排骨|腩排|瘦肉/i },
+  { key: 'pork-charcuterie-dishes', label: 'Pork Product / Dish (named)', reason: 'A named pork product, cured meat, or prepared dish — flagged by name even without the word "pork" itself appearing in the text.',
+    // A large, explicit list of pork-specific charcuterie, cuts, offal, and prepared dishes across
+    // Italian, Spanish, German, Mexican, Cantonese, and Japanese cuisines. Most already contain
+    // "pork"/"ham"/"bacon"/etc. and are covered by the 'pork' rule above; these are the ones that
+    // are NOT — e.g. "chorizo" or "char siu" never literally say "pork" in the name.
+    re: /\b(guanciale|lardo|coppa|capocollo|culatello|soppressata|chorizo|salchich[oó]n|salami|finocchiona|mortadella|kassler|bresaola\s*di\s*maiale|lomo\s*embuchado|sobrassada|nduja|cotechino|zampone|schinken|schweinshaxe|fatback|rashers?|lardons?|chicharr[oó]nes?|chitterlings?|chitlins?|carnitas|char\s*siu|siu\s*yuk|eisbein|tonkatsu|lech[oó]n|rillettes(\s*de\s*porc)?|cochinita\s*pibil|bakkwa|kakuni|dongpo(\s*pork)?|bratwurst|cumberland\s*sausage|lincolnshire\s*sausage|wiejska|kielbasa|lap\s*cheong|weisswurst|krakowska|andouille|morteau(\s*sausage)?|frankfurter|knackwurst|\bspam\b)\b|叉燒|叉烧|燒肉|烧肉|東坡肉|东坡肉|肉鬆|肉松/i },
   { key: 'gelatin', label: 'Gelatin/Gelatine (unspecified source)', reason: 'Gelatin is often derived from pork or non-halal-slaughtered animals unless labeled "halal", "beef", or "fish" gelatin.',
     re: /\b(gelatine?|gélatine|gelatina)\b(?!\s*(halal|beef gelatin from halal|fish))|ゼラチン|젤라틴|明胶|明膠|جيلاتين/i },
   { key: 'pepsin', label: 'Pepsin', reason: 'Pepsin is commonly extracted from pig stomach lining.',
@@ -567,6 +573,14 @@ const MASHBOOH_PATTERNS = [
    supplementary signal for photos of the product/dish itself, in addition to
    OCR of the printed ingredient list, which remains the primary source of
    truth whenever text is present. */
+// Used only by the Pizza/Meat-Loaf/Kebab rule below: a label that explicitly names a
+// non-pork protein (or is explicitly cheese-only/vegetarian) and has NO pork wording of
+// its own. This keeps "Chicken Kebab" / "Cheese Pizza" from being auto-flagged Haram
+// just because "kebab"/"pizza" is in the name — non-pork proteins are not Haram.
+const NAMES_NON_PORK_PROTEIN_ONLY = (l) =>
+  /\b(chicken|beef|turkey|lamb|mutton|goat|veal|duck|fish|seafood|shrimp|prawn|tuna|salmon|vegetarian|vegan|veggie|margherita|cheese)\b/i.test(l) &&
+  !/\b(pork|ham|bacon|pepperoni|prosciutto|pancetta|salami|chorizo|lardon)\b/i.test(l);
+
 const IMAGE_LABEL_RULES = [
   // Pork — the meat/product itself (this was previously missing entirely, which let
   // labels like "Pork", "Roasted Pork", "Sliced Pork" slip through unflagged).
@@ -578,6 +592,12 @@ const IMAGE_LABEL_RULES = [
     // Excludes "guinea pig" (a real, unrelated MobileNet/ImageNet class — a pet rodent, not a
     // pork source animal) so a correctly-identified guinea pig photo isn't wrongly flagged Haram.
     match: (l) => /\b(hog|piglet|boar|swine|sus scrofa|warthog)\b/i.test(l) || (/\bpig\b/i.test(l) && !/guinea\s*pig/i.test(l)) },
+  { status: 'haram', label: 'Pork Product / Dish (named)', reason: 'Visual content is identified as a named pork product, cured meat, or prepared pork dish, which is Haram.',
+    match: (l) => /\b(guanciale|lardo|coppa|capocollo|culatello|soppressata|mortadella|kassler|speck|bresaola|lomo embuchado|sobrassada|nduja|cotechino|zampone|schweinshaxe|fatback|rashers?|lardons?|chicharr[oó]nes?|chitterlings?|chitlins?|carnitas|char siu|siu yuk|eisbein|tonkatsu|lech[oó]n|rillettes|cochinita pibil|bakkwa|kakuni|dongpo|bratwurst|cumberland sausage|lincolnshire sausage|wiejska|kielbasa|lap cheong|weisswurst|krakowska|andouille|morteau|frankfurter|knackwurst|\bspam\b|pork rind|pork scratching|pork floss|rousong|pork trotter|pig'?s? feet|pig ears?|pig tail|pig snout|pulled pork)\b/i.test(l) },
+  { status: 'haram', label: 'Pizza / Meat Loaf / Kebab', reason: 'Per app policy, pizza, meat loaf, and kebab are treated as Haram by default when no specific protein is named — these dishes very commonly contain pork (pepperoni, ham, bacon) or unverifiable/mixed meat sources. If you have confirmed this specific item uses certified halal meat (or no meat at all), you can disregard this result.',
+    match: (l) => /\bpizza\b|meat\s*loaf|meatloaf|\bkebab\b/i.test(l) && !NAMES_NON_PORK_PROTEIN_ONLY(l) },
+  { status: 'mashbooh', label: 'Pizza / Meat Loaf / Kebab (non-pork protein named)', reason: 'This appears to be a pizza, meat loaf, or kebab explicitly identified with a non-pork protein (or cheese/vegetarian) — not automatically Haram, but the meat source, shared cooking equipment, and any marinade/sauce ingredients are still unverified, so verify certification manually.',
+    match: (l) => (/\bpizza\b|meat\s*loaf|meatloaf|\bkebab\b/i.test(l)) && NAMES_NON_PORK_PROTEIN_ONLY(l) },
 
   // Alcohol
   { status: 'haram', label: 'Wine / Wine Bottle', reason: 'Visual content strongly resembles wine or a wine bottle — an alcoholic beverage.',
@@ -614,7 +634,7 @@ const IMAGE_LABEL_RULES = [
 // webpage screenshot is a very common false match for "menu"; a supermarket exterior for
 // "market"/"grocery"; any packaged non-food product for "box"/"bottle"/"label"), so a photo of a
 // laptop, monitor, or website could slip through as "food" via one of those words alone. Removed.
-const FOOD_RELATED_KEYWORDS = /pork|bacon|ham|lard|pig|hog|boar|swine|beef|steak|chicken|poultry|turkey|duck|lamb|mutton|goat|fish|salmon|tuna|shrimp|prawn|crab|lobster|oyster|meat|sausage|hotdog|hot dog|burger|cheeseburger|pizza|taco|burrito|kebab|sandwich|sushi|noodle|pasta|spaghetti|carbonara|dumpling|rice\b|bread|bagel|pretzel|loaf|dough|pancake|waffle|cake|pie|pastry|cookie|biscuit|donut|dessert|ice cream|chocolate|candy|caramel|custard|trifle|consomme|soup|stew|casserole|curry|gravy|sauce|guacamole|salad|vegetable|fruit|apple|banana|orange|lemon|lime|grape|berry|melon|mango|pineapple|peach|pear|plum|cherry|fig|pomegranate|jackfruit|cucumber|tomato|potato|corn\b|mushroom|artichoke|cabbage|broccoli|cauliflower|zucchini|squash|pepper|onion|garlic|carrot|bean|pea|lentil|nut|almond|walnut|peanut|egg\b|cheese|butter|milk|cream|yogurt|honey|jam|jelly|syrup|flour|sugar|spice|herb|coffee|juice|smoothie|wine|beer|ale|lager|cocktail|liquor|spirits?|champagne|whiskey|whisky|vodka|rum\b|gin\b|tequila|brandy|cognac|sake|mirin|soju|\bwok\b|skillet|frying pan|saucepan|cutting board|chopstick|stir[\s-]?fry|\bgrilled\b|\broasted\b|barbecue|\bbbq\b/i;
+const FOOD_RELATED_KEYWORDS = /pork|bacon|ham|lard|pig|hog|boar|swine|beef|steak|chicken|poultry|turkey|duck|lamb|mutton|goat|fish|salmon|tuna|shrimp|prawn|crab|lobster|oyster|meat|sausage|hotdog|hot dog|burger|cheeseburger|pizza|taco|burrito|kebab|sandwich|sushi|noodle|pasta|spaghetti|carbonara|dumpling|rice\b|bread|bagel|pretzel|loaf|dough|pancake|waffle|cake|pie|pastry|cookie|biscuit|donut|dessert|ice cream|chocolate|candy|caramel|custard|trifle|consomme|soup|stew|casserole|curry|gravy|sauce|guacamole|salad|vegetable|fruit|apple|banana|orange|lemon|lime|grape|berry|melon|mango|pineapple|peach|pear|plum|cherry|fig|pomegranate|jackfruit|granny smith|cucumber|tomato|potato|corn\b|mushroom|artichoke|cardoon|cabbage|broccoli|cauliflower|zucchini|squash|pepper|onion|garlic|carrot|bean|pea|lentil|nut|almond|walnut|peanut|egg\b|cheese|butter|milk|cream|yogurt|honey|jam|jelly|syrup|flour|sugar|spice|herb|coffee|juice|smoothie|wine|beer|ale|lager|cocktail|liquor|spirits?|champagne|whiskey|whisky|vodka|rum\b|gin\b|tequila|brandy|cognac|sake|mirin|soju|\bwok\b|skillet|frying pan|saucepan|cutting board|chopstick|stir[\s-]?fry|\bgrilled\b|\broasted\b|barbecue|\bbbq\b/i;
 
 // If MobileNet's own top guess is below this confidence, it isn't reliably identifying anything —
 // treating that noise as evidence of "not food" produces false NOT FOOD results on real food/meat
@@ -1228,8 +1248,11 @@ function analyze(text, imageLabels, matchText, usedCloud, cloudWarning, isFoodHi
     // labels instead of naming the meat. Per explicit product requirement: if the on-device
     // engine cannot confirm what kind of meat (or non-meat) something is, never render "safe" —
     // caution/verify-manually instead.
+    // Note: pizza, meat loaf, and kebab are intentionally NOT in this list — per explicit
+    // product requirement they are always Haram (see IMAGE_LABEL_RULES above), consistently
+    // for both the on-device and Gemini cloud paths, rather than a "verify manually" Mashbooh.
     const ambiguousMeat = (imageLabels || []).find(pred =>
-      /\bmeat\b|meat\s*loaf|meatloaf|hot\s*pot|hotpot|stew|casserole|carbonara|consomm[ée]|frying\s*pan|frypan|skillet|\bwok\b|dutch\s*oven|c(a|au)ldron|crock\s*pot|\bstir[\s-]?fry|\bgrill(ed)?\b|barbecu|\bbbq\b|roast(ed)?|\bplatter\b|cheeseburger|hot\s*dog|hotdog|pot\s*pie|potpie|burrito|\bpizza\b|\btaco\b|\bkebab\b|\bshawarma\b|\bjerky\b|\bcutlet\b|\bfillet\b|\bstir-?fried\b/i.test(pred.label)
+      /\bmeat\b|hot\s*pot|hotpot|stew|casserole|carbonara|consomm[ée]|frying\s*pan|frypan|skillet|\bwok\b|dutch\s*oven|c(a|au)ldron|crock\s*pot|\bstir[\s-]?fry|\bgrill(ed)?\b|barbecu|\bbbq\b|roast(ed)?|\bplatter\b|cheeseburger|hot\s*dog|hotdog|pot\s*pie|potpie|burrito|\btaco\b|\bshawarma\b|\bjerky\b|\bcutlet\b|\bfillet\b|\bstir-?fried\b/i.test(pred.label)
     );
     if (ambiguousMeat) {
       mashboohHits.push({
