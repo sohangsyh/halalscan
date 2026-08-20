@@ -616,6 +616,12 @@ const IMAGE_LABEL_RULES = [
 // laptop, monitor, or website could slip through as "food" via one of those words alone. Removed.
 const FOOD_RELATED_KEYWORDS = /pork|bacon|ham|lard|pig|hog|boar|swine|beef|steak|chicken|poultry|turkey|duck|lamb|mutton|goat|fish|salmon|tuna|shrimp|prawn|crab|lobster|oyster|meat|sausage|hotdog|hot dog|burger|cheeseburger|pizza|taco|burrito|kebab|sandwich|sushi|noodle|pasta|spaghetti|carbonara|dumpling|rice\b|bread|bagel|pretzel|loaf|dough|pancake|waffle|cake|pie|pastry|cookie|biscuit|donut|dessert|ice cream|chocolate|candy|caramel|custard|trifle|consomme|soup|stew|casserole|curry|gravy|sauce|guacamole|salad|vegetable|fruit|apple|banana|orange|lemon|lime|grape|berry|melon|mango|pineapple|peach|pear|plum|cherry|fig|pomegranate|jackfruit|cucumber|tomato|potato|corn\b|mushroom|artichoke|cabbage|broccoli|cauliflower|zucchini|squash|pepper|onion|garlic|carrot|bean|pea|lentil|nut|almond|walnut|peanut|egg\b|cheese|butter|milk|cream|yogurt|honey|jam|jelly|syrup|flour|sugar|spice|herb|coffee|juice|smoothie|wine|beer|ale|lager|cocktail|liquor|spirits?|champagne|whiskey|whisky|vodka|rum\b|gin\b|tequila|brandy|cognac|sake|mirin|soju|\bwok\b|skillet|frying pan|saucepan|cutting board|chopstick|stir[\s-]?fry|\bgrilled\b|\broasted\b|barbecue|\bbbq\b/i;
 
+// If MobileNet's own top guess is below this confidence, it isn't reliably identifying anything —
+// treating that noise as evidence of "not food" produces false NOT FOOD results on real food/meat
+// photos it simply failed to recognize (confirmed: raw pork on a cutting board scored its top
+// guess "Wallet" at only 14%). Below this threshold, the app shows "uncertain" instead of guessing.
+const MOBILENET_LOW_CONFIDENCE_THRESHOLD = 0.20;
+
 /* ---------- 2. DOM references ---------- */
 const $ = (id) => document.getElementById(id);
 const video = $('camera-video');
@@ -1101,9 +1107,21 @@ async function runOCR(imageSource) {
         if (model && canvas.width && canvas.height) {
           const predictions = await model.classify(canvas, 5);
           imageLabels = predictions.map(p => ({ label: p.className, probability: p.probability }));
-          // MobileNet has no built-in food/non-food signal — infer it from whether ANY returned
-          // label looks food/drink/cooking-related at all (see FOOD_RELATED_KEYWORDS above).
-          isFoodHint = imageLabels.some(p => FOOD_RELATED_KEYWORDS.test(p.label));
+          const topConfidence = imageLabels.length ? imageLabels[0].probability : 0;
+          if (topConfidence < MOBILENET_LOW_CONFIDENCE_THRESHOLD) {
+            // MobileNet's own top guess is very low-confidence (e.g. "Wallet" at 14% for a photo
+            // of raw pork belly) — it isn't confidently naming ANYTHING, food or otherwise. In
+            // that state, using FOOD_RELATED_KEYWORDS on these guesses to declare "not food" would
+            // be asserting something the classifier has no real signal for (confirmed by a real
+            // report: raw pork photographed on a cutting board came back as "not food" because the
+            // top-5 were all unrelated low-confidence noise — wallet, ice lolly, bath towel,
+            // velvet, holster). Flag this as genuinely uncertain instead of guessing either way.
+            isFoodHint = 'uncertain';
+          } else {
+            // MobileNet has no built-in food/non-food signal — infer it from whether ANY returned
+            // label looks food/drink/cooking-related at all (see FOOD_RELATED_KEYWORDS above).
+            isFoodHint = imageLabels.some(p => FOOD_RELATED_KEYWORDS.test(p.label));
+          }
         }
         processingBar.style.width = '100%';
       } catch (err) {
@@ -1200,7 +1218,10 @@ function analyze(text, imageLabels, matchText, usedCloud, cloudWarning, isFoodHi
   // be a false negative for pork the classifier simply failed to name — flag it Mashbooh so
   // the user knows to verify manually or enable Gemini (a real vision model) for an accurate read.
   const imageHitFromLabels = haramHits.some(h => h.source === 'image') || mashboohHits.some(h => h.source === 'image');
-  if (scanMode === 'image' && !usedCloud && !imageHitFromLabels && (imageLabels || []).length > 0) {
+  // Skip this net when isFoodHint === 'uncertain' — MobileNet's whole top-5 was too low-confidence
+  // to mean anything (see MOBILENET_LOW_CONFIDENCE_THRESHOLD), so a coincidental keyword match
+  // inside that noise shouldn't produce a confident Mashbooh claim either; it becomes 'uncertain'.
+  if (scanMode === 'image' && !usedCloud && !imageHitFromLabels && isFoodHint !== 'uncertain' && (imageLabels || []).length > 0) {
     // Broad net of real MobileNet/ImageNet-1000 class names (and generic English words) that
     // tend to come back for meat dishes — ImageNet has NO "steak", "sausage-on-a-plate", or
     // generic "meat" class, so a meat photo usually surfaces one of these approximate/adjacent
@@ -1224,6 +1245,9 @@ function analyze(text, imageLabels, matchText, usedCloud, cloudWarning, isFoodHi
   let verdict;
   if (haramHits.length > 0) verdict = 'haram';
   else if (mashboohHits.length > 0) verdict = 'mashbooh';
+  // MobileNet's top guess was too low-confidence to mean anything (see
+  // MOBILENET_LOW_CONFIDENCE_THRESHOLD) — don't assert "not food" OR "safe" from noise.
+  else if (scanMode === 'image' && (imageLabels || []).length > 0 && isFoodHint === 'uncertain') verdict = 'uncertain';
   // Photo recognition ran (Image mode) but found nothing food/drink-related at all, and nothing
   // above already flagged it Haram/Mashbooh — this is a photo of something that isn't food, so
   // don't force it into a Halal/Haram verdict. Gemini reports this directly via isFood; the
@@ -1247,7 +1271,10 @@ const VERDICT_ICONS = {
   haram: '<svg xmlns="http://www.w3.org/2000/svg" class="w-9 h-9 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>',
   // A plain circled "!" interjection mark — distinct from the Mashbooh triangle-warning icon —
   // for the neutral "this isn't food" state, which isn't a Halal/Haram/Mashbooh judgment at all.
-  'not-food': '<svg xmlns="http://www.w3.org/2000/svg" class="w-9 h-9 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v5m0 3.25h.008"/></svg>'
+  'not-food': '<svg xmlns="http://www.w3.org/2000/svg" class="w-9 h-9 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v5m0 3.25h.008"/></svg>',
+  // A circled "?" — distinct from "not food" (a claim) — for when the free recognizer's guesses
+  // were too low-confidence to support any claim at all, food or otherwise.
+  uncertain: '<svg xmlns="http://www.w3.org/2000/svg" class="w-9 h-9 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M9.5 9a2.5 2.5 0 1 1 3.5 2.29c-.7.32-1.3.9-1.3 1.71v.25M12 16.75h.008"/></svg>'
 };
 
 function renderResult(verdict, haramHits, mashboohHits, fullText, imageLabels, usedCloud, cloudWarning) {
@@ -1282,6 +1309,11 @@ function renderResult(verdict, haramHits, mashboohHits, fullText, imageLabels, u
       title: 'NOT FOOD', titleAr: 'ليس طعامًا',
       sub: 'This photo doesn\'t appear to show food, a drink, or a food product — point the camera at the item you want to check.',
       tint: 'bg-gray-600/70'
+    },
+    uncertain: {
+      title: 'UNCERTAIN', titleAr: 'غير مؤكد',
+      sub: 'The free recognizer couldn\'t confidently identify this photo at all — it is NOT saying this is safe. Try better lighting/a closer shot, or add a Gemini API key in Settings for accurate results.',
+      tint: 'bg-slate-500/70'
     }
   };
   const c = configs[verdict];
