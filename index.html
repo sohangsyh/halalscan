@@ -104,9 +104,9 @@
      (a real bug caught in testing). The :not(.hidden) rule below sets display:flex only when the
      hidden class is absent, so toggling .hidden via JS always wins either way. */
   #mode-switch-wrap{
-    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    position:absolute; top:12px; left:12px;
     z-index:40;
-    flex-direction:column; align-items:center; gap:8px;
+    flex-direction:column; align-items:flex-start; gap:8px;
   }
   #mode-switch-wrap:not(.hidden){
     display:flex;
@@ -300,7 +300,7 @@
       <div class="frame-vignette"></div>
 
       <!-- Idle state -->
-      <div id="camera-idle" class="text-center text-[#cfe9dc] px-6 flex flex-col items-center gap-3 relative z-10 mt-28">
+      <div id="camera-idle" class="text-center text-[#cfe9dc] px-6 flex flex-col items-center gap-3 relative z-10">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 text-gold opacity-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.3">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 0 1 2-2h.93a2 2 0 0 0 1.664-.89l.812-1.22A2 2 0 0 1 10.07 4h3.86a2 2 0 0 1 1.664.89l.812 1.22A2 2 0 0 0 18.07 7H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/>
           <circle cx="12" cy="13" r="3.5"/>
